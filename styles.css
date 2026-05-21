@@ -1,17 +1,17 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  --bg: #dedede;
+  --bg: #e9e9e9;
   --text: #1f2229;
-  --topbar-bg: #1f2027;
+  --topbar-bg: linear-gradient(90deg, #1d1e24 0%, #2a2b32 50%, #1d1e24 100%);
   --topbar-text: #f1f1f1;
-  --panel-bg: #f3f3f3;
-  --panel-border: #c8c8c8;
-  --card-border: #cfcfcf;
-  --card-bg: #f3f3f3;
+  --panel-bg: #f4f4f4;
+  --panel-border: #c9c9c9;
+  --card-border: #d4d4d4;
+  --card-bg: #f4f4f4;
   --label: #6c6c6c;
-  --input-bg: #fdfdfd;
-  --input-border: #d0d0d0;
+  --input-bg: #ffffff;
+  --input-border: #d7d7d7;
   --input-text: #212121;
   --status: #5f6776;
   --muted: #6f7786;
@@ -85,22 +85,22 @@ body {
 }
 
 .topbar {
-  height: 54px;
+  height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0 0.8rem;
+  padding: 0 0.7rem;
   background: var(--topbar-bg);
   color: var(--topbar-text);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.22);
 }
 
 .topbar-left,
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   min-width: 250px;
 }
 
@@ -109,20 +109,30 @@ body {
 }
 
 .topbar-center {
-  font-size: 1.1rem;
-  opacity: 0.9;
+  font-size: 2.8rem;
+  line-height: 1;
+  font-weight: 500;
+  font-family: "Avenir Next", "Segoe UI", Inter, sans-serif;
   letter-spacing: 0.01em;
+  transform: scaleY(0.9);
 }
 
-.app-mark {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 0.4rem;
-  padding: 0.12rem 0.45rem;
-  font-weight: 700;
+.chrome-icon {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #f2f2f2;
+  background: transparent;
+  border-radius: 0.35rem;
+  width: 2.05rem;
+  height: 2.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .app-name {
-  font-size: 1.1rem;
+  font-size: 2rem;
+  font-weight: 400;
 }
 
 .top-button {
@@ -135,10 +145,15 @@ body {
   cursor: pointer;
 }
 
+.top-button.secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
 .app {
-  min-height: calc(100vh - 54px);
+  min-height: calc(100vh - 58px);
   display: grid;
-  grid-template-columns: 390px 1fr;
+  grid-template-columns: 570px 1fr;
 }
 
 .controls {
@@ -152,21 +167,12 @@ body {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.4rem;
+  padding: 0.35rem 0.5rem;
   border-bottom: 1px solid var(--panel-border);
   position: sticky;
   top: 0;
   z-index: 5;
   background: var(--panel-bg);
-}
-
-#add-graph {
-  min-width: 2.2rem;
-  min-height: 2.2rem;
-  padding: 0;
-  border-radius: 0.4rem;
-  font-size: 1.6rem;
-  line-height: 1;
 }
 
 button {
@@ -177,6 +183,18 @@ button {
   padding: 0.35rem 0.65rem;
   font: inherit;
   cursor: pointer;
+}
+
+.toolbar-icon {
+  min-width: 2.1rem;
+  min-height: 2.1rem;
+  padding: 0;
+  border-radius: 0.35rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button.secondary {
@@ -195,7 +213,7 @@ button.secondary {
   border-left: 0;
   border-right: 0;
   margin-top: -1px;
-  padding: 0.45rem 0.5rem 0.55rem;
+  padding: 0.2rem 0.5rem 0.5rem;
 }
 
 .card-top {
@@ -214,12 +232,12 @@ button.secondary {
 .icon-button {
   background: transparent;
   color: var(--muted);
-  border: 1px solid var(--card-border);
+  border: none;
   border-radius: 0.35rem;
-  min-width: 1.9rem;
-  min-height: 1.9rem;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
   line-height: 1;
-  font-size: 1.35rem;
+  font-size: 2rem;
   padding: 0;
 }
 
@@ -262,7 +280,12 @@ select {
 }
 
 .graph-card input[data-field='mainExpr'] {
-  font-size: 1.06rem;
+  font-size: 2.6rem;
+  line-height: 1.1;
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .hint {

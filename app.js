@@ -80,6 +80,8 @@
       uMax: '3',
       vMin: '0',
       vMax: '2*pi',
+      wMin: '0',
+      wMax: '1',
       solidExpr: 'x^2 + y^2 + z^2 - 4 <= 0',
       boundsMin: '-2.5',
       boundsMax: '2.5',
@@ -212,6 +214,37 @@
     return /[<>]=?|==|!=/.test(String(expression || ''));
   }
 
+  function parseParametricTuple(expression, strict = false) {
+    const expr = String(expression || '').trim();
+    if (!expr) {
+      return null;
+    }
+    const base = stripOuterParens(expr);
+    let parts;
+    try {
+      parts = splitTopLevel(base);
+    } catch (err) {
+      if (strict) {
+        throw err;
+      }
+      return null;
+    }
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const [rawX, rawY, rawZ] = parts;
+    const xExpr = removeAxisPrefix(rawX, 'x');
+    const yExpr = removeAxisPrefix(rawY, 'y');
+    const zExpr = removeAxisPrefix(rawZ, 'z');
+    const combined = `${xExpr} ${yExpr} ${zExpr}`;
+    const hasW = expressionHasIdentifier(combined, 'w');
+    const hasUOrV = expressionHasIdentifier(combined, 'u') || expressionHasIdentifier(combined, 'v');
+    const type = hasW ? 'solid' : (hasUOrV ? 'surface' : 'curve');
+
+    return { xExpr, yExpr, zExpr, type };
+  }
+
   function applyMainExpression(graph) {
     const expr = String(graph.mainExpr || '').trim();
     if (!expr) {
@@ -221,19 +254,12 @@
       return;
     }
 
-    const base = stripOuterParens(expr);
-    const parts = splitTopLevel(base);
-
-    if (parts.length === 3) {
-      const [rawX, rawY, rawZ] = parts;
-      const xExpr = removeAxisPrefix(rawX, 'x');
-      const yExpr = removeAxisPrefix(rawY, 'y');
-      const zExpr = removeAxisPrefix(rawZ, 'z');
-      const combined = `${xExpr} ${yExpr} ${zExpr}`;
-      graph.type = expressionHasIdentifier(combined, 'u') || expressionHasIdentifier(combined, 'v') ? 'surface' : 'curve';
-      graph.xExpr = xExpr;
-      graph.yExpr = yExpr;
-      graph.zExpr = zExpr;
+    const tuple = parseParametricTuple(expr, true);
+    if (tuple) {
+      graph.type = tuple.type;
+      graph.xExpr = tuple.xExpr;
+      graph.yExpr = tuple.yExpr;
+      graph.zExpr = tuple.zExpr;
       return;
     }
 
@@ -248,14 +274,18 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. For curves/surfaces use parametric component form like (cos(t), sin(t), t/6) or explicit form z=f(x, y).');
+    throwMainExpressionError('Invalid expression. Use (x(t), y(t), z(t)), (x(u,v), y(u,v), z(u,v)), (x(u,v,w), y(u,v,w), z(u,v,w)), or z=f(x, y).');
   }
 
   function setTheme(theme) {
     activeTheme = theme === 'light' ? 'light' : 'dark';
     document.documentElement.dataset.theme = activeTheme;
     if (toggleThemeButton) {
-      toggleThemeButton.textContent = activeTheme === 'light' ? 'Dark Mode' : 'Light Mode';
+      if (toggleThemeButton.dataset.themeToggle === 'icon') {
+        toggleThemeButton.textContent = activeTheme === 'light' ? '☀' : '◐';
+      } else {
+        toggleThemeButton.textContent = activeTheme === 'light' ? 'Dark Mode' : 'Light Mode';
+      }
     }
     try {
       localStorage.setItem('graph-theme', activeTheme);
@@ -385,6 +415,49 @@
   }
 
   function createSolidDrawable(graph) {
+    const tuple = parseParametricTuple(graph.mainExpr);
+    if (tuple && tuple.type === 'solid') {
+      const xExpr = compile(tuple.xExpr, ['u', 'v', 'w']);
+      const yExpr = compile(tuple.yExpr, ['u', 'v', 'w']);
+      const zExpr = compile(tuple.zExpr, ['u', 'v', 'w']);
+      const uMin = parseNumber(graph.uMin);
+      const uMax = parseNumber(graph.uMax);
+      const vMin = parseNumber(graph.vMin);
+      const vMax = parseNumber(graph.vMax);
+      const wMin = parseNumber(graph.wMin);
+      const wMax = parseNumber(graph.wMax);
+      const resolution = Math.max(MIN_SOLID_RESOLUTION, Math.min(MAX_SOLID_RESOLUTION, Math.round(parseNumber(graph.resolution))));
+
+      if (!(uMax > uMin && vMax > vMin && wMax > wMin)) {
+        throw new Error('u/v/w max must be greater than min.');
+      }
+
+      const points = [];
+      for (let iu = 0; iu <= resolution; iu += 1) {
+        const u = uMin + ((uMax - uMin) * iu) / resolution;
+        for (let iv = 0; iv <= resolution; iv += 1) {
+          const v = vMin + ((vMax - vMin) * iv) / resolution;
+          for (let iw = 0; iw <= resolution; iw += 1) {
+            const w = wMin + ((wMax - wMin) * iw) / resolution;
+            points.push({
+              x: finiteNumber(evaluateCompiled(xExpr, { u, v, w })),
+              y: finiteNumber(evaluateCompiled(yExpr, { u, v, w })),
+              z: finiteNumber(evaluateCompiled(zExpr, { u, v, w }))
+            });
+          }
+        }
+      }
+
+      if (points.length === 0) {
+        throw new Error('No solid points found in the current u/v/w ranges.');
+      }
+
+      graph.xExpr = tuple.xExpr;
+      graph.yExpr = tuple.yExpr;
+      graph.zExpr = tuple.zExpr;
+      return { kind: 'points', color: graph.color, radius: Math.max(1, 14 / resolution), points };
+    }
+
     const expr = compile(graph.solidExpr, ['x', 'y', 'z']);
     const min = parseNumber(graph.boundsMin);
     const max = parseNumber(graph.boundsMax);
@@ -469,8 +542,8 @@
       <div class="row">
         <div class="field full">
           <label>Expression</label>
-          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x, y, z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x, y)</code> for explicit surfaces.</div>
+          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(x(t), y(t), z(t)) | (x(u,v), y(u,v), z(u,v)) | (x(u,v,w), y(u,v,w), z(u,v,w)) | z=f(x,y)" />
+          <div class="hint">Tuple syntax supports curve <code>(t)</code>, surface <code>(u,v)</code>, solid <code>(u,v,w)</code>, plus explicit <code>z=f(x,y)</code>.</div>
         </div>
       </div>
 
@@ -506,6 +579,8 @@
             ${field('uMax', 'u max', graph.uMax)}
             ${field('vMin', 'v min', graph.vMin)}
             ${field('vMax', 'v max', graph.vMax)}
+            ${field('wMin', 'w min', graph.wMin)}
+            ${field('wMax', 'w max', graph.wMax)}
           </div>
 
           <div data-type-group="solid" class="row">
@@ -548,9 +623,13 @@
 
     function refreshVisibility() {
       const type = typeSelect.value;
+      const tuple = parseParametricTuple(card.querySelector('[data-field="mainExpr"]').value);
+      const showParametricSolidRanges = type === 'surface' || (type === 'solid' && Boolean(tuple && tuple.type === 'solid'));
       card.querySelectorAll('[data-type-group]').forEach((el) => {
         const group = el.dataset.typeGroup;
-        const visible = group === type || (group === 'curve-surface' && (type === 'curve' || type === 'surface'));
+        const isCurveSurfaceGroup = group === 'curve-surface' && (type === 'curve' || type === 'surface');
+        const isSurfaceGroup = group === 'surface' && showParametricSolidRanges;
+        const visible = group === type || isCurveSurfaceGroup || isSurfaceGroup;
         el.style.display = visible ? 'grid' : 'none';
       });
     }
@@ -580,6 +659,7 @@
     });
 
     card.querySelector('[data-action="plot"]').addEventListener('click', replot);
+    card.querySelector('[data-field="mainExpr"]').addEventListener('input', refreshVisibility);
 
     card.querySelector('[data-action="remove"]').addEventListener('click', () => {
       const index = runtimeGraphs.findIndex((g) => g.id === graph.id);

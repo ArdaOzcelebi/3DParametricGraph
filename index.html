@@ -3,26 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3D Parametric Graph</title>
+    <title>Desmos-like 3D Parametric Graph</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="topbar-left">
-        <span class="app-mark">3D</span>
-        <span class="app-name">Parametric Graph</span>
+        <button type="button" class="chrome-icon" aria-label="Open menu">☰</button>
+        <span class="app-name">Untitled Graph</span>
+        <button type="button" class="top-button save">Save</button>
       </div>
-      <div class="topbar-center">desmos style UI</div>
+      <div class="topbar-center">desmos</div>
       <div class="topbar-right">
-        <button id="toggle-theme" type="button" class="top-button">Light Mode</button>
+        <button type="button" class="top-button secondary">Sign In</button>
+        <button type="button" class="top-button save">Save</button>
       </div>
     </header>
 
     <main class="app">
       <section class="controls">
         <div class="toolbar">
-          <button id="add-graph" type="button" title="Add Expression">+</button>
-          <button id="reset-camera" type="button" class="secondary">Reset View</button>
+          <button id="add-graph" type="button" class="toolbar-icon" title="Add Expression">+</button>
+          <button id="reset-camera" type="button" class="toolbar-icon secondary" title="Reset View">↺</button>
+          <button id="toggle-theme" type="button" class="toolbar-icon secondary" data-theme-toggle="icon" title="Toggle Theme" aria-label="Toggle Theme">◐</button>
         </div>
 
         <div id="graph-list" class="graph-list"></div>
@@ -32,8 +35,9 @@
           <ul>
             <li><strong>Curve:</strong> (cos(t), sin(t), t/6), t:[0, 12*pi]</li>
             <li><strong>Surface:</strong> (u*v, sin(u*v), cos(u)), u:[0,3], v:[0,2*pi]</li>
+            <li><strong>Parametric solid:</strong> (u, v, w), u:[-2,2], v:[-2,2], w:[-2,2]</li>
             <li><strong>Explicit:</strong> z=sin(x)*cos(y)</li>
-            <li><strong>Solid:</strong> x^2 + y^2 + z^2 - 4 &lt;= 0</li>
+            <li><strong>Implicit solid:</strong> x^2 + y^2 + z^2 - 4 &lt;= 0</li>
           </ul>
         </details>
       </section>
