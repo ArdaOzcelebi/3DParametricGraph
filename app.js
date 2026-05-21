@@ -274,7 +274,7 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. Use (x(t), y(t), z(t)), (x(u,v), y(u,v), z(u,v)), (x(u,v,w), y(u,v,w), z(u,v,w)), or z=f(x, y).');
+    throwMainExpressionError('Invalid expression. Use tuple syntax for curve/surface/solid, or z=f(x, y).');
   }
 
   function setTheme(theme) {
@@ -624,11 +624,11 @@
     function refreshVisibility() {
       const type = typeSelect.value;
       const tuple = parseParametricTuple(card.querySelector('[data-field="mainExpr"]').value);
-      const showParametricSolidRanges = type === 'surface' || (type === 'solid' && Boolean(tuple && tuple.type === 'solid'));
+      const showParametricRanges = type === 'surface' || (type === 'solid' && Boolean(tuple && tuple.type === 'solid'));
       card.querySelectorAll('[data-type-group]').forEach((el) => {
         const group = el.dataset.typeGroup;
         const isCurveSurfaceGroup = group === 'curve-surface' && (type === 'curve' || type === 'surface');
-        const isSurfaceGroup = group === 'surface' && showParametricSolidRanges;
+        const isSurfaceGroup = group === 'surface' && showParametricRanges;
         const visible = group === type || isCurveSurfaceGroup || isSurfaceGroup;
         el.style.display = visible ? 'grid' : 'none';
       });

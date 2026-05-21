@@ -371,6 +371,14 @@ select {
     padding: 0.5rem;
   }
 
+  .topbar-center {
+    font-size: 2rem;
+  }
+
+  .app-name {
+    font-size: 1.2rem;
+  }
+
   .topbar-left,
   .topbar-right {
     min-width: auto;
@@ -389,5 +397,9 @@ select {
 
   .viewer {
     min-height: 50vh;
+  }
+
+  .graph-card input[data-field='mainExpr'] {
+    font-size: 1.7rem;
   }
 }
