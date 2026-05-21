@@ -65,14 +65,17 @@
 
   function createDefaultGraph() {
     graphIdCounter += 1;
+    const defaultXExpr = 'cos(t)';
+    const defaultYExpr = 'sin(t)';
+    const defaultZExpr = 't/6';
     return {
       id: `graph-${graphIdCounter}`,
       type: 'curve',
       color: '#37b3ff',
-      mainExpr: '(cos(t), sin(t), t/6)',
-      xExpr: 'cos(t)',
-      yExpr: 'sin(t)',
-      zExpr: 't/6',
+      mainExpr: `(${defaultXExpr}, ${defaultYExpr}, ${defaultZExpr})`,
+      xExpr: defaultXExpr,
+      yExpr: defaultYExpr,
+      zExpr: defaultZExpr,
       tMin: '0',
       tMax: '12*pi',
       uMin: '0',
@@ -244,7 +247,7 @@
       return;
     }
 
-    throw new Error('Invalid expression. Use (x,y,z) or z=f(x,y).');
+    throwMainExpressionError('Invalid expression. Use (x, y, z) for parametric input or z=f(x, y) for explicit surfaces.');
   }
 
   function setTheme(theme) {
