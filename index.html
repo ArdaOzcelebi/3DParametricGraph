@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Parametric Graph</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="controls">
+        <header>
+          <h1>3D Parametric Graph</h1>
+          <p>Graph curves, surfaces, and solids in 3D.</p>
+        </header>
+
+        <div class="toolbar">
+          <button id="add-graph" type="button">+ Add Graph</button>
+          <button id="reset-camera" type="button">Reset Camera</button>
+        </div>
+
+        <div id="graph-list" class="graph-list"></div>
+
+        <details class="examples" open>
+          <summary>Example expressions</summary>
+          <ul>
+            <li><strong>Curve</strong>: x(t)=cos(t), y(t)=sin(t), z(t)=t/6, t:[0, 12*pi]</li>
+            <li><strong>Surface</strong>: x(u,v)=u*cos(v), y(u,v)=u*sin(v), z(u,v)=sin(3*u), u:[0,3], v:[0,2*pi]</li>
+            <li><strong>Solid</strong>: x^2 + y^2 + z^2 - 4 &lt;= 0 in bounds [-2.5,2.5]</li>
+          </ul>
+        </details>
+      </section>
+
+      <section class="viewer">
+        <canvas id="graph-canvas" aria-label="3D graph viewport"></canvas>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
