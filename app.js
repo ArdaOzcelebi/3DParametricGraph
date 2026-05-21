@@ -144,7 +144,10 @@
         depth += 1;
         current += ch;
       } else if (ch === ')') {
-        depth = Math.max(0, depth - 1);
+        depth -= 1;
+        if (depth < 0) {
+          throw new Error('Invalid expression. Parentheses are unbalanced.');
+        }
         current += ch;
       } else if (ch === ',' && depth === 0) {
         parts.push(current.trim());
@@ -152,6 +155,9 @@
       } else {
         current += ch;
       }
+    }
+    if (depth !== 0) {
+      throw new Error('Invalid expression. Parentheses are unbalanced.');
     }
     if (current.trim()) {
       parts.push(current.trim());
@@ -179,6 +185,10 @@
     return String(rhs || '').replace(/\bx\b/g, 'u').replace(/\by\b/g, 'v');
   }
 
+  function containsComparisonOperators(expression) {
+    return /[<>]=?|==|!=/.test(String(expression || ''));
+  }
+
   function applyMainExpression(graph) {
     const expr = String(graph.mainExpr || '').trim();
     if (!expr) {
@@ -203,7 +213,7 @@
 
     const explicitMatch = expr.match(/^\s*z\s*=\s*(.+)$/i);
     const rhs = explicitMatch ? explicitMatch[1].trim() : expr;
-    const looksLikeSurfaceExpr = !/[<>]=?|==|!=/.test(rhs) && (expressionHasIdentifier(rhs, 'x') || expressionHasIdentifier(rhs, 'y'));
+    const looksLikeSurfaceExpr = !containsComparisonOperators(rhs) && (expressionHasIdentifier(rhs, 'x') || expressionHasIdentifier(rhs, 'y'));
     if (looksLikeSurfaceExpr) {
       graph.type = 'surface';
       graph.xExpr = 'u';
@@ -427,13 +437,13 @@
         <div class="field full">
           <label>Expression</label>
           <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x,y,z)</code> for parametric or <code>z=f(x,y)</code> for explicit surfaces.</div>
+          <div class="hint">Use <code>(x,y,z)</code> for parametric (with <code>t</code> for curves, <code>u/v</code> for surfaces) or <code>z=f(x,y)</code> for explicit surfaces.</div>
         </div>
       </div>
 
       <div class="row">
         <div class="field">
-          <label>Type (auto-detected from expression)</label>
+          <label>Type (can auto-update from expression)</label>
           <select data-field="type">
             <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
             <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
