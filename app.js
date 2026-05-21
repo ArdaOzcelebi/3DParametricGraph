@@ -178,11 +178,29 @@
   }
 
   function expressionHasIdentifier(expression, identifier) {
-    return new RegExp(`\\b${identifier}\\b`).test(expression);
+    const name = String(identifier || '').trim();
+    if (!/^[A-Za-z_]\w*$/.test(name)) {
+      return false;
+    }
+    return new RegExp(`\\b${name}\\b`).test(String(expression || ''));
   }
 
   function removeAxisPrefix(expression, axis) {
-    return String(expression || '').replace(new RegExp(`^\\s*${axis}\\s*=\\s*`, 'i'), '').trim();
+    const value = String(expression || '').trim();
+    const axisName = String(axis || '').trim().toLowerCase();
+    if (!['x', 'y', 'z'].includes(axisName)) {
+      return value;
+    }
+    const prefix = `${axisName}=`;
+    const normalized = value.replace(/\s+/g, '');
+    if (!normalized.toLowerCase().startsWith(prefix)) {
+      return value;
+    }
+    const equalIndex = value.indexOf('=');
+    if (equalIndex === -1) {
+      return value;
+    }
+    return value.slice(equalIndex + 1).trim();
   }
 
   function toSurfaceExpression(rhs) {
@@ -441,7 +459,7 @@
         <div class="field full">
           <label>Expression</label>
           <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x,y,z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x,y)</code> for explicit surfaces.</div>
+          <div class="hint">Use <code>(x, y, z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x, y)</code> for explicit surfaces.</div>
         </div>
       </div>
 
