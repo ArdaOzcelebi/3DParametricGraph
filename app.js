@@ -215,6 +215,9 @@
   function applyMainExpression(graph) {
     const expr = String(graph.mainExpr || '').trim();
     if (!expr) {
+      if (graph.xExpr && graph.yExpr && graph.zExpr) {
+        graph.mainExpr = `(${graph.xExpr}, ${graph.yExpr}, ${graph.zExpr})`;
+      }
       return;
     }
 
@@ -245,7 +248,7 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. For non-solid graphs use (x, y, z) for parametric input or z=f(x, y) for explicit surfaces.');
+    throwMainExpressionError('Invalid expression. For non-solid graphs use parametric component form like (cos(t), sin(t), t/6) or explicit form z=f(x, y).');
   }
 
   function setTheme(theme) {
@@ -456,10 +459,10 @@
     const card = document.createElement('article');
     card.className = 'graph-card';
     const foundIndex = runtimeGraphs.findIndex((item) => item.id === graph.id);
-    const graphNumber = foundIndex >= 0 ? foundIndex + 1 : runtimeGraphs.length;
+    const graphNumber = Math.max(1, foundIndex >= 0 ? foundIndex + 1 : runtimeGraphs.length);
     card.innerHTML = `
       <div class="card-top">
-        <span class="entry-index">${Math.max(1, graphNumber)}</span>
+        <span class="entry-index">${graphNumber}</span>
         <button type="button" data-action="remove" class="icon-button" aria-label="Remove expression">×</button>
       </div>
 
