@@ -280,7 +280,7 @@ select {
 }
 
 .graph-card input[data-field='mainExpr'] {
-  font-size: 2.6rem;
+  font-size: 2.2rem;
   line-height: 1.1;
   border: none;
   background: transparent;
@@ -400,6 +400,6 @@ select {
   }
 
   .graph-card input[data-field='mainExpr'] {
-    font-size: 1.7rem;
+    font-size: 1.5rem;
   }
 }

@@ -542,7 +542,7 @@
       <div class="row">
         <div class="field full">
           <label>Expression</label>
-          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
+          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" />
           <div class="hint">Tuple syntax supports curve <code>(t)</code>, surface <code>(u,v)</code>, solid <code>(u,v,w)</code>, plus explicit <code>z=f(x,y)</code>.</div>
         </div>
       </div>
@@ -624,7 +624,7 @@
     function refreshVisibility() {
       const type = typeSelect.value;
       const tuple = parseParametricTuple(card.querySelector('[data-field="mainExpr"]').value);
-      const showParametricRanges = type === 'surface' || (type === 'solid' && Boolean(tuple && tuple.type === 'solid'));
+      const showParametricRanges = type === 'surface' || (type === 'solid' && tuple && tuple.type === 'solid');
       card.querySelectorAll('[data-type-group]').forEach((el) => {
         const group = el.dataset.typeGroup;
         const isCurveSurfaceGroup = group === 'curve-surface' && (type === 'curve' || type === 'surface');
