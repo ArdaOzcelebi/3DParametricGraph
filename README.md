@@ -7,7 +7,7 @@ A lightweight web app for graphing 3D **parametric curves**, **parametric surfac
 Because this is a static web app, you can run it with any static server:
 
 ```bash
-cd /home/runner/work/3DParametricGraph/3DParametricGraph
+cd /path/to/3DParametricGraph
 python3 -m http.server 8000
 ```
 

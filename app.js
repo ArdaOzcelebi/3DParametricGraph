@@ -19,6 +19,12 @@
   };
 
   const runtimeGraphs = [];
+  let graphIdCounter = 0;
+  const POINT_SIZE_SCALE = 12;
+  const MIN_DEPTH_FOR_POINT_SCALING = 6;
+  const MIN_SOLID_RESOLUTION = 8;
+  const MAX_SOLID_RESOLUTION = 42;
+  const MAX_DEVICE_PIXEL_RATIO = 2;
 
   const SAFE_SCOPE = {
     sin: Math.sin,
@@ -42,10 +48,13 @@
   };
   const SAFE_KEYS = Object.keys(SAFE_SCOPE);
   const SAFE_VALUES = SAFE_KEYS.map((k) => SAFE_SCOPE[k]);
+  const IDENTIFIER_RE = /[A-Za-z_]\w*/g;
+  const DISALLOWED_CHARS_RE = /[^0-9A-Za-z_+\-*/%^().,<>=!&| \t]/;
 
   function createDefaultGraph() {
+    graphIdCounter += 1;
     return {
-      id: Math.random().toString(36).slice(2),
+      id: `graph-${graphIdCounter}`,
       type: 'curve',
       color: '#37b3ff',
       xExpr: 'cos(t)',
@@ -66,12 +75,27 @@
     };
   }
 
-  function rewriteExpr(expression) {
+  function normalizeExponentSyntax(expression) {
     return String(expression || '0').replace(/\^/g, '**');
   }
 
+  function validateExpressionSource(src, variables) {
+    if (DISALLOWED_CHARS_RE.test(src)) {
+      throw new Error('Expression contains unsupported characters.');
+    }
+
+    const allowedNames = new Set([...SAFE_KEYS, ...variables, 'true', 'false']);
+    const identifiers = src.match(IDENTIFIER_RE) || [];
+    for (const id of identifiers) {
+      if (!allowedNames.has(id)) {
+        throw new Error(`Unsupported token in expression: ${id}`);
+      }
+    }
+  }
+
   function compile(expression, variables) {
-    const src = rewriteExpr(expression);
+    const src = normalizeExponentSyntax(expression);
+    validateExpressionSource(src, variables);
     return new Function(...SAFE_KEYS, ...variables, `'use strict'; return (${src});`);
   }
 
@@ -130,9 +154,12 @@
   }
 
   function colorToRGBA(hex, alpha) {
-    const value = String(hex || '#ffffff').replace('#', '');
+    const value = String(hex || '#ffffff').replace(/#/g, '');
     const expanded = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
-    const n = Number.parseInt(expanded, 16);
+    if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
+      return `rgba(255, 255, 255, ${alpha})`;
+    }
+    const n = parseInt(expanded, 16);
     const r = (n >> 16) & 255;
     const g = (n >> 8) & 255;
     const b = n & 255;
@@ -218,7 +245,7 @@
     const expr = compile(graph.solidExpr, ['x', 'y', 'z']);
     const min = parseNumber(graph.boundsMin);
     const max = parseNumber(graph.boundsMax);
-    const resolution = Math.max(8, Math.min(42, Math.round(parseNumber(graph.resolution))));
+    const resolution = Math.max(MIN_SOLID_RESOLUTION, Math.min(MAX_SOLID_RESOLUTION, Math.round(parseNumber(graph.resolution))));
 
     if (!(max > min)) {
       throw new Error('Bounds max must be greater than bounds min.');
@@ -234,7 +261,14 @@
           const y = min + (span * iy) / resolution;
           const z = min + (span * iz) / resolution;
           const value = evaluateCompiled(expr, { x, y, z });
-          const inside = typeof value === 'boolean' ? value : Number(value) <= 0;
+          let inside;
+          if (typeof value === 'boolean') {
+            inside = value;
+          } else if (typeof value === 'number' && Number.isFinite(value)) {
+            inside = value <= 0;
+          } else {
+            throw new Error('Solid expression must return a boolean or finite number.');
+          }
           if (inside) {
             points.push({ x, y, z });
           }
@@ -471,7 +505,8 @@
         ctx.lineTo(cmd.bx, cmd.by);
         ctx.stroke();
       } else {
-        const size = Math.max(1, cmd.radius * (12 / Math.max(6, cmd.depth)));
+        const adjustedDepth = Math.max(MIN_DEPTH_FOR_POINT_SCALING, cmd.depth);
+        const size = Math.max(1, cmd.radius * (POINT_SIZE_SCALE / adjustedDepth));
         ctx.fillStyle = cmd.color;
         ctx.beginPath();
         ctx.arc(cmd.x, cmd.y, size, 0, Math.PI * 2);
@@ -486,8 +521,8 @@
     const height = Math.max(1, Math.floor(rect.height));
     renderState.width = width;
     renderState.height = height;
-    canvas.width = Math.floor(width * Math.min(window.devicePixelRatio || 1, 2));
-    canvas.height = Math.floor(height * Math.min(window.devicePixelRatio || 1, 2));
+    canvas.width = Math.floor(width * Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO));
+    canvas.height = Math.floor(height * Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO));
     ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
   }
 
