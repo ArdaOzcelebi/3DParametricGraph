@@ -542,7 +542,7 @@
       <div class="row">
         <div class="field full">
           <label>Expression</label>
-          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(x(t), y(t), z(t)) | (x(u,v), y(u,v), z(u,v)) | (x(u,v,w), y(u,v,w), z(u,v,w)) | z=f(x,y)" />
+          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
           <div class="hint">Tuple syntax supports curve <code>(t)</code>, surface <code>(u,v)</code>, solid <code>(u,v,w)</code>, plus explicit <code>z=f(x,y)</code>.</div>
         </div>
       </div>
