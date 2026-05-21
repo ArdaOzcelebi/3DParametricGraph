@@ -26,6 +26,7 @@
   const MIN_SOLID_RESOLUTION = 8;
   const MAX_SOLID_RESOLUTION = 42;
   const MAX_DEVICE_PIXEL_RATIO = 2;
+  const DEFAULT_MAIN_EXAMPLE = '(cos(t), sin(t), t/6)';
   const THEME_COLORS = {
     dark: {
       canvas: '#060913',
@@ -65,12 +66,11 @@
 
   function createDefaultGraph() {
     graphIdCounter += 1;
-    const defaultMainExpr = '(cos(t), sin(t), t/6)';
     return {
       id: `graph-${graphIdCounter}`,
       type: 'curve',
       color: '#37b3ff',
-      mainExpr: defaultMainExpr,
+      mainExpr: DEFAULT_MAIN_EXAMPLE,
       xExpr: 'cos(t)',
       yExpr: 'sin(t)',
       zExpr: 't/6',
@@ -248,7 +248,7 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. For non-solid graphs use parametric component form like (cos(t), sin(t), t/6) or explicit form z=f(x, y).');
+    throwMainExpressionError('Invalid expression. For curves/surfaces use parametric component form like (cos(t), sin(t), t/6) or explicit form z=f(x, y).');
   }
 
   function setTheme(theme) {
@@ -469,8 +469,8 @@
       <div class="row">
         <div class="field full">
           <label>Expression</label>
-          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x, y, z)</code> for parametric or <code>z=f(x, y)</code> for explicit surfaces.</div>
+          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" />
+          <div class="hint">Use <code>(x, y, z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x, y)</code> for explicit surfaces.</div>
         </div>
       </div>
 
