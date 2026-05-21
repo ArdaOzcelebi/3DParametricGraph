@@ -65,17 +65,15 @@
 
   function createDefaultGraph() {
     graphIdCounter += 1;
-    const defaultXExpr = 'cos(t)';
-    const defaultYExpr = 'sin(t)';
-    const defaultZExpr = 't/6';
+    const defaultMainExpr = '(cos(t), sin(t), t/6)';
     return {
       id: `graph-${graphIdCounter}`,
       type: 'curve',
       color: '#37b3ff',
-      mainExpr: `(${defaultXExpr}, ${defaultYExpr}, ${defaultZExpr})`,
-      xExpr: defaultXExpr,
-      yExpr: defaultYExpr,
-      zExpr: defaultZExpr,
+      mainExpr: defaultMainExpr,
+      xExpr: 'cos(t)',
+      yExpr: 'sin(t)',
+      zExpr: 't/6',
       tMin: '0',
       tMax: '12*pi',
       uMin: '0',
@@ -247,7 +245,7 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. Use (x, y, z) for parametric input or z=f(x, y) for explicit surfaces.');
+    throwMainExpressionError('Invalid expression. For non-solid graphs use (x, y, z) for parametric input or z=f(x, y) for explicit surfaces.');
   }
 
   function setTheme(theme) {
@@ -457,7 +455,8 @@
   function renderGraphCard(graph) {
     const card = document.createElement('article');
     card.className = 'graph-card';
-    const graphNumber = runtimeGraphs.findIndex((item) => item.id === graph.id) + 1;
+    const foundIndex = runtimeGraphs.findIndex((item) => item.id === graph.id);
+    const graphNumber = foundIndex >= 0 ? foundIndex + 1 : runtimeGraphs.length;
     card.innerHTML = `
       <div class="card-top">
         <span class="entry-index">${Math.max(1, graphNumber)}</span>
@@ -539,6 +538,11 @@
       statusEl.classList.toggle('error', Boolean(isError));
     }
 
+    function updateReadOnlySummary() {
+      card.querySelector('[data-readonly="type"]').value = graph.type;
+      card.querySelector('[data-readonly="color"]').value = graph.color;
+    }
+
     function refreshVisibility() {
       const type = typeSelect.value;
       card.querySelectorAll('[data-type-group]').forEach((el) => {
@@ -556,8 +560,7 @@
         card.querySelector('[data-field="xExpr"]').value = graph.xExpr;
         card.querySelector('[data-field="yExpr"]').value = graph.yExpr;
         card.querySelector('[data-field="zExpr"]').value = graph.zExpr;
-        card.querySelector('[data-readonly="type"]').value = graph.type;
-        card.querySelector('[data-readonly="color"]').value = graph.color;
+        updateReadOnlySummary();
         refreshVisibility();
         setStatus(graph.status, false);
       } catch (err) {
@@ -569,8 +572,7 @@
     typeSelect.addEventListener('change', () => {
       refreshVisibility();
       updateGraphFromForm(graph, card);
-      card.querySelector('[data-readonly="type"]').value = graph.type;
-      card.querySelector('[data-readonly="color"]').value = graph.color;
+      updateReadOnlySummary();
       setStatus('Type changed. Press Plot to render.', false);
     });
 
@@ -766,17 +768,21 @@
     });
   }
 
-  let initialTheme = 'dark';
-  try {
-    const storedTheme = localStorage.getItem('graph-theme');
-    if (storedTheme === 'light' || storedTheme === 'dark') {
-      initialTheme = storedTheme;
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      initialTheme = 'light';
+  const initialTheme = (() => {
+    let fallback = 'dark';
+    try {
+      const storedTheme = localStorage.getItem('graph-theme');
+      if (storedTheme === 'light' || storedTheme === 'dark') {
+        return storedTheme;
+      }
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+    } catch (err) {
+      fallback = 'dark';
     }
-  } catch (err) {
-    initialTheme = 'dark';
-  }
+    return fallback;
+  })();
   setTheme(initialTheme);
 
   resize();
