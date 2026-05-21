@@ -134,6 +134,10 @@
     return num;
   }
 
+  function throwMainExpressionError(message) {
+    throw new Error(message || 'Invalid expression.');
+  }
+
   function splitTopLevel(expression) {
     const parts = [];
     let current = '';
@@ -146,7 +150,7 @@
       } else if (ch === ')') {
         depth -= 1;
         if (depth < 0) {
-          throw new Error('Invalid expression. Parentheses are unbalanced.');
+          throwMainExpressionError('Invalid expression. Parentheses are unbalanced.');
         }
         current += ch;
       } else if (ch === ',' && depth === 0) {
@@ -157,7 +161,7 @@
       }
     }
     if (depth !== 0) {
-      throw new Error('Invalid expression. Parentheses are unbalanced.');
+      throwMainExpressionError('Invalid expression. Parentheses are unbalanced.');
     }
     if (current.trim()) {
       parts.push(current.trim());
@@ -437,7 +441,7 @@
         <div class="field full">
           <label>Expression</label>
           <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x,y,z)</code> for parametric (with <code>t</code> for curves, <code>u/v</code> for surfaces) or <code>z=f(x,y)</code> for explicit surfaces.</div>
+          <div class="hint">Use <code>(x,y,z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x,y)</code> for explicit surfaces.</div>
         </div>
       </div>
 
