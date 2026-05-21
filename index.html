@@ -7,26 +7,33 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="app-mark">3D</span>
+        <span class="app-name">Parametric Graph</span>
+      </div>
+      <div class="topbar-center">desmos style UI</div>
+      <div class="topbar-right">
+        <button id="toggle-theme" type="button" class="top-button">Light Mode</button>
+      </div>
+    </header>
+
     <main class="app">
       <section class="controls">
-        <header>
-          <h1>3D Parametric Graph</h1>
-          <p>Graph curves, surfaces, and solids in 3D.</p>
-        </header>
-
         <div class="toolbar">
-          <button id="add-graph" type="button">+ Add Graph</button>
-          <button id="reset-camera" type="button">Reset Camera</button>
+          <button id="add-graph" type="button" title="Add Expression">+</button>
+          <button id="reset-camera" type="button" class="secondary">Reset View</button>
         </div>
 
         <div id="graph-list" class="graph-list"></div>
 
-        <details class="examples" open>
-          <summary>Example expressions</summary>
+        <details class="examples">
+          <summary>Examples</summary>
           <ul>
-            <li><strong>Curve</strong>: x(t)=cos(t), y(t)=sin(t), z(t)=t/6, t:[0, 12*pi]</li>
-            <li><strong>Surface</strong>: x(u,v)=u*cos(v), y(u,v)=u*sin(v), z(u,v)=sin(3*u), u:[0,3], v:[0,2*pi]</li>
-            <li><strong>Solid</strong>: x^2 + y^2 + z^2 - 4 &lt;= 0 in bounds [-2.5,2.5]</li>
+            <li><strong>Curve:</strong> (cos(t), sin(t), t/6), t:[0, 12*pi]</li>
+            <li><strong>Surface:</strong> (u*v, sin(u*v), cos(u)), u:[0,3], v:[0,2*pi]</li>
+            <li><strong>Explicit:</strong> z=sin(x)*cos(y)</li>
+            <li><strong>Solid:</strong> x^2 + y^2 + z^2 - 4 &lt;= 0</li>
           </ul>
         </details>
       </section>

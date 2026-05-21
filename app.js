@@ -3,6 +3,7 @@
   const graphList = document.getElementById('graph-list');
   const addButton = document.getElementById('add-graph');
   const resetCameraButton = document.getElementById('reset-camera');
+  const toggleThemeButton = document.getElementById('toggle-theme');
 
   const ctx = canvas.getContext('2d');
   const camera = {
@@ -25,6 +26,18 @@
   const MIN_SOLID_RESOLUTION = 8;
   const MAX_SOLID_RESOLUTION = 42;
   const MAX_DEVICE_PIXEL_RATIO = 2;
+  const DEFAULT_MAIN_EXAMPLE = '(cos(t), sin(t), t/6)';
+  const THEME_COLORS = {
+    dark: {
+      canvas: '#060913',
+      grid: 'rgba(60, 72, 110, 0.55)'
+    },
+    light: {
+      canvas: '#f5f7fe',
+      grid: 'rgba(146, 159, 199, 0.65)'
+    }
+  };
+  let activeTheme = 'dark';
 
   const SAFE_SCOPE = {
     sin: Math.sin,
@@ -57,6 +70,7 @@
       id: `graph-${graphIdCounter}`,
       type: 'curve',
       color: '#37b3ff',
+      mainExpr: DEFAULT_MAIN_EXAMPLE,
       xExpr: 'cos(t)',
       yExpr: 'sin(t)',
       zExpr: 't/6',
@@ -119,6 +133,135 @@
       throw new Error('Expression produced a non-finite value.');
     }
     return num;
+  }
+
+  function throwMainExpressionError(message) {
+    throw new Error(message || 'Invalid expression.');
+  }
+
+  function splitTopLevel(expression) {
+    const parts = [];
+    let current = '';
+    let depth = 0;
+    for (let i = 0; i < expression.length; i += 1) {
+      const ch = expression[i];
+      if (ch === '(') {
+        depth += 1;
+        current += ch;
+      } else if (ch === ')') {
+        depth -= 1;
+        if (depth < 0) {
+          throwMainExpressionError('Invalid expression. Parentheses are unbalanced.');
+        }
+        current += ch;
+      } else if (ch === ',' && depth === 0) {
+        parts.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    if (depth !== 0) {
+      throwMainExpressionError('Invalid expression. Parentheses are unbalanced.');
+    }
+    if (current.trim()) {
+      parts.push(current.trim());
+    }
+    return parts;
+  }
+
+  function stripOuterParens(expression) {
+    const trimmed = String(expression || '').trim();
+    if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+      return trimmed.slice(1, -1).trim();
+    }
+    return trimmed;
+  }
+
+  function expressionHasIdentifier(expression, identifier) {
+    const name = String(identifier || '').trim();
+    if (!/^[A-Za-z_]\w*$/.test(name)) {
+      return false;
+    }
+    return new RegExp(`\\b${name}\\b`).test(String(expression || ''));
+  }
+
+  function removeAxisPrefix(expression, axis) {
+    const value = String(expression || '').trim();
+    const axisName = String(axis || '').trim().toLowerCase();
+    if (!['x', 'y', 'z'].includes(axisName)) {
+      return value;
+    }
+    const prefix = `${axisName}=`;
+    const normalized = value.replace(/\s+/g, '');
+    if (!normalized.toLowerCase().startsWith(prefix)) {
+      return value;
+    }
+    const equalIndex = value.indexOf('=');
+    if (equalIndex === -1) {
+      return value;
+    }
+    return value.slice(equalIndex + 1).trim();
+  }
+
+  function toSurfaceExpression(rhs) {
+    return String(rhs || '').replace(/\bx\b/g, 'u').replace(/\by\b/g, 'v');
+  }
+
+  function containsComparisonOperators(expression) {
+    return /[<>]=?|==|!=/.test(String(expression || ''));
+  }
+
+  function applyMainExpression(graph) {
+    const expr = String(graph.mainExpr || '').trim();
+    if (!expr) {
+      if (graph.xExpr && graph.yExpr && graph.zExpr) {
+        graph.mainExpr = `(${graph.xExpr}, ${graph.yExpr}, ${graph.zExpr})`;
+      }
+      return;
+    }
+
+    const base = stripOuterParens(expr);
+    const parts = splitTopLevel(base);
+
+    if (parts.length === 3) {
+      const [rawX, rawY, rawZ] = parts;
+      const xExpr = removeAxisPrefix(rawX, 'x');
+      const yExpr = removeAxisPrefix(rawY, 'y');
+      const zExpr = removeAxisPrefix(rawZ, 'z');
+      const combined = `${xExpr} ${yExpr} ${zExpr}`;
+      graph.type = expressionHasIdentifier(combined, 'u') || expressionHasIdentifier(combined, 'v') ? 'surface' : 'curve';
+      graph.xExpr = xExpr;
+      graph.yExpr = yExpr;
+      graph.zExpr = zExpr;
+      return;
+    }
+
+    const explicitMatch = expr.match(/^\s*z\s*=\s*(.+)$/i);
+    const rhs = explicitMatch ? explicitMatch[1].trim() : expr;
+    const looksLikeSurfaceExpr = !containsComparisonOperators(rhs) && (expressionHasIdentifier(rhs, 'x') || expressionHasIdentifier(rhs, 'y'));
+    if (looksLikeSurfaceExpr) {
+      graph.type = 'surface';
+      graph.xExpr = 'u';
+      graph.yExpr = 'v';
+      graph.zExpr = toSurfaceExpression(rhs);
+      return;
+    }
+
+    throwMainExpressionError('Invalid expression. For curves/surfaces use parametric component form like (cos(t), sin(t), t/6) or explicit form z=f(x, y).');
+  }
+
+  function setTheme(theme) {
+    activeTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = activeTheme;
+    if (toggleThemeButton) {
+      toggleThemeButton.textContent = activeTheme === 'light' ? 'Dark Mode' : 'Light Mode';
+    }
+    try {
+      localStorage.setItem('graph-theme', activeTheme);
+    } catch (err) {
+      // Ignore storage errors.
+    }
   }
 
   function rotatePoint(point) {
@@ -284,6 +427,9 @@
   }
 
   function rebuildGraph(graph) {
+    if (graph.type !== 'solid') {
+      applyMainExpression(graph);
+    }
     if (graph.type === 'curve') {
       graph.drawable = createCurveDrawable(graph);
     } else if (graph.type === 'surface') {
@@ -312,50 +458,77 @@
   function renderGraphCard(graph) {
     const card = document.createElement('article');
     card.className = 'graph-card';
+    const foundIndex = runtimeGraphs.findIndex((item) => item.id === graph.id);
+    const graphNumber = Math.max(1, foundIndex >= 0 ? foundIndex + 1 : runtimeGraphs.length);
     card.innerHTML = `
+      <div class="card-top">
+        <span class="entry-index">${graphNumber}</span>
+        <button type="button" data-action="remove" class="icon-button" aria-label="Remove expression">×</button>
+      </div>
+
       <div class="row">
-        <div class="field">
-          <label>Type</label>
-          <select data-field="type">
-            <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
-            <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
-            <option value="solid" ${graph.type === 'solid' ? 'selected' : ''}>Solid</option>
-          </select>
-        </div>
-        ${field('color', 'Color', graph.color, 'color')}
-      </div>
-
-      <div data-type-group="curve-surface" class="row">
-        ${field('xExpr', 'x expression', graph.xExpr)}
-        ${field('yExpr', 'y expression', graph.yExpr)}
-        ${field('zExpr', 'z expression', graph.zExpr)}
-      </div>
-
-      <div data-type-group="curve" class="row">
-        ${field('tMin', 't min', graph.tMin)}
-        ${field('tMax', 't max', graph.tMax)}
-      </div>
-
-      <div data-type-group="surface" class="row">
-        ${field('uMin', 'u min', graph.uMin)}
-        ${field('uMax', 'u max', graph.uMax)}
-        ${field('vMin', 'v min', graph.vMin)}
-        ${field('vMax', 'v max', graph.vMax)}
-      </div>
-
-      <div data-type-group="solid" class="row">
         <div class="field full">
-          <label>Solid expression (boolean, or <= 0 form)</label>
-          <input data-field="solidExpr" value="${graph.solidExpr}" />
+          <label>Expression</label>
+          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" />
+          <div class="hint">Use <code>(x, y, z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x, y)</code> for explicit surfaces.</div>
         </div>
-        ${field('boundsMin', 'Bounds min', graph.boundsMin)}
-        ${field('boundsMax', 'Bounds max', graph.boundsMax)}
-        ${field('resolution', 'Resolution (8-42)', graph.resolution)}
       </div>
 
       <div class="card-actions">
         <button type="button" data-action="plot">Plot</button>
-        <button type="button" data-action="remove" class="secondary">Remove</button>
+        <details class="advanced-options">
+          <summary>Advanced</summary>
+          <div class="row">
+            <div class="field">
+              <label>Type</label>
+              <select data-field="type">
+                <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
+                <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
+                <option value="solid" ${graph.type === 'solid' ? 'selected' : ''}>Solid</option>
+              </select>
+            </div>
+            ${field('color', 'Color', graph.color, 'color')}
+          </div>
+
+          <div data-type-group="curve-surface" class="row">
+            ${field('xExpr', 'x expression', graph.xExpr)}
+            ${field('yExpr', 'y expression', graph.yExpr)}
+            ${field('zExpr', 'z expression', graph.zExpr)}
+          </div>
+
+          <div data-type-group="curve" class="row split">
+            ${field('tMin', 't min', graph.tMin)}
+            ${field('tMax', 't max', graph.tMax)}
+          </div>
+
+          <div data-type-group="surface" class="row split">
+            ${field('uMin', 'u min', graph.uMin)}
+            ${field('uMax', 'u max', graph.uMax)}
+            ${field('vMin', 'v min', graph.vMin)}
+            ${field('vMax', 'v max', graph.vMax)}
+          </div>
+
+          <div data-type-group="solid" class="row">
+            <div class="field full">
+              <label>Solid expression (boolean, or <= 0 form)</label>
+              <input data-field="solidExpr" value="${graph.solidExpr}" />
+            </div>
+            ${field('boundsMin', 'Bounds min', graph.boundsMin)}
+            ${field('boundsMax', 'Bounds max', graph.boundsMax)}
+            ${field('resolution', 'Resolution (8-42)', graph.resolution)}
+          </div>
+        </details>
+      </div>
+
+      <div class="row compact-fields">
+        <div class="field">
+          <label>Type</label>
+          <input data-readonly="type" value="${graph.type}" readonly />
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <input data-readonly="color" value="${graph.color}" readonly />
+        </div>
       </div>
       <div class="status"></div>
     `;
@@ -366,6 +539,11 @@
     function setStatus(text, isError) {
       statusEl.textContent = text;
       statusEl.classList.toggle('error', Boolean(isError));
+    }
+
+    function updateReadOnlySummary() {
+      card.querySelector('[data-readonly="type"]').value = graph.type;
+      card.querySelector('[data-readonly="color"]').value = graph.color;
     }
 
     function refreshVisibility() {
@@ -381,6 +559,12 @@
       updateGraphFromForm(graph, card);
       try {
         rebuildGraph(graph);
+        typeSelect.value = graph.type;
+        card.querySelector('[data-field="xExpr"]').value = graph.xExpr;
+        card.querySelector('[data-field="yExpr"]').value = graph.yExpr;
+        card.querySelector('[data-field="zExpr"]').value = graph.zExpr;
+        updateReadOnlySummary();
+        refreshVisibility();
         setStatus(graph.status, false);
       } catch (err) {
         graph.drawable = null;
@@ -391,6 +575,7 @@
     typeSelect.addEventListener('change', () => {
       refreshVisibility();
       updateGraphFromForm(graph, card);
+      updateReadOnlySummary();
       setStatus('Type changed. Press Plot to render.', false);
     });
 
@@ -402,6 +587,9 @@
         runtimeGraphs.splice(index, 1);
       }
       card.remove();
+      graphList.querySelectorAll('.entry-index').forEach((el, idx) => {
+        el.textContent = String(idx + 1);
+      });
     });
 
     refreshVisibility();
@@ -426,8 +614,8 @@
   function drawAxesAndGrid() {
     const lines = [];
     for (let i = -10; i <= 10; i += 1) {
-      lines.push([{ x: i, y: 0, z: -10 }, { x: i, y: 0, z: 10 }, 'rgba(60, 72, 110, 0.55)']);
-      lines.push([{ x: -10, y: 0, z: i }, { x: 10, y: 0, z: i }, 'rgba(60, 72, 110, 0.55)']);
+      lines.push([{ x: i, y: 0, z: -10 }, { x: i, y: 0, z: 10 }, THEME_COLORS[activeTheme].grid]);
+      lines.push([{ x: -10, y: 0, z: i }, { x: 10, y: 0, z: i }, THEME_COLORS[activeTheme].grid]);
     }
 
     lines.push([{ x: -6, y: 0, z: 0 }, { x: 6, y: 0, z: 0 }, '#ff6f6f']);
@@ -527,7 +715,7 @@
   }
 
   function render() {
-    ctx.fillStyle = '#060913';
+    ctx.fillStyle = THEME_COLORS[activeTheme].canvas;
     ctx.fillRect(0, 0, renderState.width, renderState.height);
     drawAxesAndGrid();
     drawGraphs();
@@ -576,6 +764,29 @@
   });
 
   window.addEventListener('resize', resize);
+
+  if (toggleThemeButton) {
+    toggleThemeButton.addEventListener('click', () => {
+      setTheme(activeTheme === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  const initialTheme = (() => {
+    let fallback = 'dark';
+    try {
+      const storedTheme = localStorage.getItem('graph-theme');
+      if (storedTheme === 'light' || storedTheme === 'dark') {
+        return storedTheme;
+      }
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+    } catch (err) {
+      fallback = 'dark';
+    }
+    return fallback;
+  })();
+  setTheme(initialTheme);
 
   resize();
   addGraph(createDefaultGraph());
