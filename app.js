@@ -457,58 +457,76 @@
   function renderGraphCard(graph) {
     const card = document.createElement('article');
     card.className = 'graph-card';
+    const graphNumber = runtimeGraphs.findIndex((item) => item.id === graph.id) + 1;
     card.innerHTML = `
+      <div class="card-top">
+        <span class="entry-index">${Math.max(1, graphNumber)}</span>
+        <button type="button" data-action="remove" class="icon-button" aria-label="Remove expression">×</button>
+      </div>
+
       <div class="row">
         <div class="field full">
           <label>Expression</label>
           <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="(cos(t), sin(t), t/6) or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x, y, z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x, y)</code> for explicit surfaces.</div>
+          <div class="hint">Use <code>(x, y, z)</code> for parametric or <code>z=f(x, y)</code> for explicit surfaces.</div>
         </div>
-      </div>
-
-      <div class="row">
-        <div class="field">
-          <label>Type (can auto-update from expression)</label>
-          <select data-field="type">
-            <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
-            <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
-            <option value="solid" ${graph.type === 'solid' ? 'selected' : ''}>Solid</option>
-          </select>
-        </div>
-        ${field('color', 'Color', graph.color, 'color')}
-      </div>
-
-      <div data-type-group="curve-surface" class="row">
-        ${field('xExpr', 'x expression (advanced)', graph.xExpr)}
-        ${field('yExpr', 'y expression (advanced)', graph.yExpr)}
-        ${field('zExpr', 'z expression (advanced)', graph.zExpr)}
-      </div>
-
-      <div data-type-group="curve" class="row">
-        ${field('tMin', 't min', graph.tMin)}
-        ${field('tMax', 't max', graph.tMax)}
-      </div>
-
-      <div data-type-group="surface" class="row">
-        ${field('uMin', 'u min', graph.uMin)}
-        ${field('uMax', 'u max', graph.uMax)}
-        ${field('vMin', 'v min', graph.vMin)}
-        ${field('vMax', 'v max', graph.vMax)}
-      </div>
-
-      <div data-type-group="solid" class="row">
-        <div class="field full">
-          <label>Solid expression (boolean, or <= 0 form)</label>
-          <input data-field="solidExpr" value="${graph.solidExpr}" />
-        </div>
-        ${field('boundsMin', 'Bounds min', graph.boundsMin)}
-        ${field('boundsMax', 'Bounds max', graph.boundsMax)}
-        ${field('resolution', 'Resolution (8-42)', graph.resolution)}
       </div>
 
       <div class="card-actions">
         <button type="button" data-action="plot">Plot</button>
-        <button type="button" data-action="remove" class="secondary">Remove</button>
+        <details class="advanced-options">
+          <summary>Advanced</summary>
+          <div class="row">
+            <div class="field">
+              <label>Type</label>
+              <select data-field="type">
+                <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
+                <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
+                <option value="solid" ${graph.type === 'solid' ? 'selected' : ''}>Solid</option>
+              </select>
+            </div>
+            ${field('color', 'Color', graph.color, 'color')}
+          </div>
+
+          <div data-type-group="curve-surface" class="row">
+            ${field('xExpr', 'x expression', graph.xExpr)}
+            ${field('yExpr', 'y expression', graph.yExpr)}
+            ${field('zExpr', 'z expression', graph.zExpr)}
+          </div>
+
+          <div data-type-group="curve" class="row split">
+            ${field('tMin', 't min', graph.tMin)}
+            ${field('tMax', 't max', graph.tMax)}
+          </div>
+
+          <div data-type-group="surface" class="row split">
+            ${field('uMin', 'u min', graph.uMin)}
+            ${field('uMax', 'u max', graph.uMax)}
+            ${field('vMin', 'v min', graph.vMin)}
+            ${field('vMax', 'v max', graph.vMax)}
+          </div>
+
+          <div data-type-group="solid" class="row">
+            <div class="field full">
+              <label>Solid expression (boolean, or <= 0 form)</label>
+              <input data-field="solidExpr" value="${graph.solidExpr}" />
+            </div>
+            ${field('boundsMin', 'Bounds min', graph.boundsMin)}
+            ${field('boundsMax', 'Bounds max', graph.boundsMax)}
+            ${field('resolution', 'Resolution (8-42)', graph.resolution)}
+          </div>
+        </details>
+      </div>
+
+      <div class="row compact-fields">
+        <div class="field">
+          <label>Type</label>
+          <input data-readonly="type" value="${graph.type}" readonly />
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <input data-readonly="color" value="${graph.color}" readonly />
+        </div>
       </div>
       <div class="status"></div>
     `;
@@ -538,6 +556,8 @@
         card.querySelector('[data-field="xExpr"]').value = graph.xExpr;
         card.querySelector('[data-field="yExpr"]').value = graph.yExpr;
         card.querySelector('[data-field="zExpr"]').value = graph.zExpr;
+        card.querySelector('[data-readonly="type"]').value = graph.type;
+        card.querySelector('[data-readonly="color"]').value = graph.color;
         refreshVisibility();
         setStatus(graph.status, false);
       } catch (err) {
@@ -549,6 +569,8 @@
     typeSelect.addEventListener('change', () => {
       refreshVisibility();
       updateGraphFromForm(graph, card);
+      card.querySelector('[data-readonly="type"]').value = graph.type;
+      card.querySelector('[data-readonly="color"]').value = graph.color;
       setStatus('Type changed. Press Plot to render.', false);
     });
 
@@ -560,6 +582,9 @@
         runtimeGraphs.splice(index, 1);
       }
       card.remove();
+      graphList.querySelectorAll('.entry-index').forEach((el, idx) => {
+        el.textContent = String(idx + 1);
+      });
     });
 
     refreshVisibility();
