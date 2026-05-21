@@ -274,7 +274,7 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. Use tuple syntax for curve/surface/solid, or z=f(x, y).');
+    throwMainExpressionError('Invalid expression. Try (cos(t), sin(t), t/6), (u*v, sin(u*v), cos(u)), (u, v, w), or z=sin(x)*cos(y).');
   }
 
   function setTheme(theme) {
@@ -282,7 +282,7 @@
     document.documentElement.dataset.theme = activeTheme;
     if (toggleThemeButton) {
       if (toggleThemeButton.dataset.themeToggle === 'icon') {
-        toggleThemeButton.textContent = activeTheme === 'light' ? '☀' : '◐';
+        toggleThemeButton.textContent = activeTheme === 'light' ? '◐' : '☀';
       } else {
         toggleThemeButton.textContent = activeTheme === 'light' ? 'Dark Mode' : 'Light Mode';
       }
