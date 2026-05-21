@@ -1,6 +1,20 @@
 :root {
   color-scheme: dark;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --bg: #090b12;
+  --text: #f4f6ff;
+  --panel-bg: #101424;
+  --panel-border: #1f2436;
+  --muted: #c4cae0;
+  --card-border: #31374f;
+  --card-bg: #141b2f;
+  --label: #d4d9ef;
+  --input-bg: #0b1020;
+  --input-border: #2f3650;
+  --input-text: #fff;
+  --status: #9ca4c5;
+  --examples: #dce2fb;
+  --examples-list: #c5cce9;
 }
 
 * {
@@ -9,8 +23,26 @@
 
 body {
   margin: 0;
-  background: #090b12;
-  color: #f4f6ff;
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #eef2ff;
+  --text: #1d2539;
+  --panel-bg: #ffffff;
+  --panel-border: #d2daee;
+  --muted: #556083;
+  --card-border: #cfd8ee;
+  --card-bg: #f8faff;
+  --label: #334264;
+  --input-bg: #ffffff;
+  --input-border: #b8c6e8;
+  --input-text: #1d2539;
+  --status: #5f6e92;
+  --examples: #29385f;
+  --examples-list: #495983;
 }
 
 .app {
@@ -21,8 +53,8 @@ body {
 
 .controls {
   padding: 1rem;
-  border-right: 1px solid #1f2436;
-  background: #101424;
+  border-right: 1px solid var(--panel-border);
+  background: var(--panel-bg);
   overflow: auto;
 }
 
@@ -33,7 +65,7 @@ h1 {
 
 header p {
   margin: 0.35rem 0 1rem;
-  color: #c4cae0;
+  color: var(--muted);
 }
 
 .toolbar {
@@ -63,10 +95,10 @@ button.secondary {
 }
 
 .graph-card {
-  border: 1px solid #31374f;
+  border: 1px solid var(--card-border);
   border-radius: 0.7rem;
   padding: 0.65rem;
-  background: #141b2f;
+  background: var(--card-bg);
 }
 
 .row {
@@ -87,18 +119,24 @@ button.secondary {
 
 label {
   font-size: 0.8rem;
-  color: #d4d9ef;
+  color: var(--label);
 }
 
 input,
 select {
   width: 100%;
-  background: #0b1020;
-  border: 1px solid #2f3650;
-  color: #fff;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-text);
   border-radius: 0.45rem;
   padding: 0.4rem 0.5rem;
   font: inherit;
+}
+
+.hint {
+  margin-top: 0.3rem;
+  font-size: 0.76rem;
+  color: var(--muted);
 }
 
 .card-actions {
@@ -110,7 +148,7 @@ select {
 .status {
   margin-top: 0.5rem;
   font-size: 0.8rem;
-  color: #9ca4c5;
+  color: var(--status);
   min-height: 1.1rem;
 }
 
@@ -121,13 +159,13 @@ select {
 .examples {
   margin-top: 1rem;
   font-size: 0.88rem;
-  color: #dce2fb;
+  color: var(--examples);
 }
 
 .examples ul {
   margin: 0.5rem 0 0;
   padding-left: 1.15rem;
-  color: #c5cce9;
+  color: var(--examples-list);
 }
 
 .viewer {
@@ -148,7 +186,7 @@ select {
 
   .controls {
     border-right: none;
-    border-bottom: 1px solid #1f2436;
+    border-bottom: 1px solid var(--panel-border);
     max-height: 50vh;
   }
 
