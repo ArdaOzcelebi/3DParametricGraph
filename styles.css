@@ -207,26 +207,65 @@ button.secondary {
 }
 
 .graph-card {
-  border: 1px solid var(--card-border);
-  border-radius: 0;
+  border-bottom: 1px solid var(--card-border);
   background: var(--card-bg);
-  border-left: 0;
-  border-right: 0;
-  margin-top: -1px;
-  padding: 0.2rem 0.5rem 0.5rem;
 }
 
-.card-top {
+.card-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.35rem;
+  align-items: flex-start;
+  gap: 0;
+  min-height: 3.2rem;
 }
 
-.entry-index {
-  color: var(--muted);
-  font-size: 0.78rem;
-  width: 1.3rem;
+.color-dot {
+  flex-shrink: 0;
+  width: 2.6rem;
+  align-self: stretch;
+  border: none;
+  border-right: 1px solid var(--card-border);
+  border-radius: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.color-dot::after {
+  content: '';
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: inherit;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.card-body {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.5rem 0.45rem;
+}
+
+.card-body input[data-field='mainExpr'] {
+  width: 100%;
+  font-size: 1.55rem;
+  line-height: 1.15;
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: var(--input-text);
+  outline: none;
+}
+
+.card-row > .icon-button {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 0.3rem;
+  padding: 0 0.25rem;
 }
 
 .icon-button {
@@ -279,18 +318,9 @@ select {
   font: inherit;
 }
 
-.graph-card input[data-field='mainExpr'] {
-  font-size: 2.2rem;
-  line-height: 1.1;
-  border: none;
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-}
-
-.hint {
-  margin-top: 0.15rem;
-  font-size: 0.71rem;
+.card-body .hint {
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
   color: var(--muted);
 }
 
@@ -299,7 +329,7 @@ select {
   gap: 0.35rem;
   flex-wrap: wrap;
   align-items: center;
-  margin-top: 0.1rem;
+  margin-top: 0.35rem;
 }
 
 .advanced-options {
@@ -399,7 +429,7 @@ select {
     min-height: 50vh;
   }
 
-  .graph-card input[data-field='mainExpr'] {
-    font-size: 1.5rem;
+  .card-body input[data-field='mainExpr'] {
+    font-size: 1.2rem;
   }
 }
