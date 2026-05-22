@@ -26,6 +26,7 @@
   const MIN_SOLID_RESOLUTION = 8;
   const MAX_SOLID_RESOLUTION = 42;
   const MAX_DEVICE_PIXEL_RATIO = 2;
+  const MESH_OPACITY = 0.92;
   const DEFAULT_MAIN_EXAMPLE = '(cos(t), sin(t), t/6)';
   const GRAPH_COLORS = ['#c74440', '#2d70b3', '#388c46', '#fa7e19', '#6042a6', '#000000'];
   const THEME_COLORS = {
@@ -873,7 +874,7 @@
         const r = Math.round(cmd.r * br);
         const g = Math.round(cmd.g * br);
         const b = Math.round(cmd.b * br);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.92)`;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${MESH_OPACITY})`;
         ctx.beginPath();
         ctx.moveTo(cmd.pts[0].x, cmd.pts[0].y);
         ctx.lineTo(cmd.pts[1].x, cmd.pts[1].y);
