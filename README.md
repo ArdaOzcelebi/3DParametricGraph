@@ -19,6 +19,7 @@ Then open `http://localhost:8000`.
 - Single expression input per graph card:
   - Parametric tuple: `(x(...), y(...), z(...))` with variables `t`, `u,v`, or `u,v,w`
   - Explicit surface form: `z=f(x,y)` (mapped over `u,v` ranges as x/y domain)
+  - Math typing QoL: implicit multiplication (`uv`, `2x`, `(u+v)(u-v)`), `sqrt`/`√`, `infty`/`∞`, and `π` aliases
 - Graph types:
   - Curve: `x(t), y(t), z(t)` with `t` range
   - Surface: `x(u,v), y(u,v), z(u,v)` with `u,v` ranges
@@ -26,3 +27,4 @@ Then open `http://localhost:8000`.
 - Light/dark mode toggle
 - Mobile-friendly responsive control panel + viewport
 - Orbit/zoom/pan controls for easy 3D navigation
+- Improved expression evaluation performance (reduced per-point overhead in curve/surface/solid sampling)
