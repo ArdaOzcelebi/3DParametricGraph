@@ -4,6 +4,8 @@
   const addButton = document.getElementById('add-graph');
   const resetCameraButton = document.getElementById('reset-camera');
   const toggleThemeButton = document.getElementById('toggle-theme');
+  const gridToggle = document.getElementById('toggle-grid');
+  const negativeAxesToggle = document.getElementById('toggle-negative-axes');
 
   const ctx = canvas.getContext('2d');
   const camera = {
@@ -16,7 +18,20 @@
   const renderState = {
     width: 1,
     height: 1,
-    scale: 760
+    scale: 760,
+    cameraBasis: {
+      cy: 1,
+      sy: 0,
+      cp: 1,
+      sp: 0,
+      tx: 0,
+      ty: 0,
+      tz: 0
+    }
+  };
+  const viewOptions = {
+    showGrid: true,
+    showNegativeAxes: true
   };
 
   const runtimeGraphs = [];
@@ -418,34 +433,34 @@
     }
   }
 
-  function rotatePoint(point) {
-    const dx = point.x - camera.target.x;
-    const dy = point.y - camera.target.y;
-    const dz = point.z - camera.target.z;
-
-    const cy = Math.cos(camera.yaw);
-    const sy = Math.sin(camera.yaw);
-    const cp = Math.cos(camera.pitch);
-    const sp = Math.sin(camera.pitch);
-
-    const x1 = cy * dx - sy * dz;
-    const z1 = sy * dx + cy * dz;
-    const y2 = cp * dy - sp * z1;
-    const z2 = sp * dy + cp * z1;
-
-    return { x: x1, y: y2, z: z2 };
+  function updateCameraBasis() {
+    const basis = renderState.cameraBasis;
+    basis.cy = Math.cos(camera.yaw);
+    basis.sy = Math.sin(camera.yaw);
+    basis.cp = Math.cos(camera.pitch);
+    basis.sp = Math.sin(camera.pitch);
+    basis.tx = camera.target.x;
+    basis.ty = camera.target.y;
+    basis.tz = camera.target.z;
   }
 
   function project(point) {
-    const p = rotatePoint(point);
-    const depth = p.z + camera.distance;
+    const basis = renderState.cameraBasis;
+    const dx = point.x - basis.tx;
+    const dy = point.y - basis.ty;
+    const dz = point.z - basis.tz;
+    const x1 = basis.cy * dx - basis.sy * dz;
+    const z1 = basis.sy * dx + basis.cy * dz;
+    const y2 = basis.cp * dy - basis.sp * z1;
+    const z2 = basis.sp * dy + basis.cp * z1;
+    const depth = z2 + camera.distance;
     if (depth <= 0.2) {
       return null;
     }
     const s = renderState.scale / depth;
     return {
-      x: renderState.width * 0.5 + p.x * s,
-      y: renderState.height * 0.5 - p.y * s,
+      x: renderState.width * 0.5 + x1 * s,
+      y: renderState.height * 0.5 - y2 * s,
       depth
     };
   }
@@ -474,22 +489,22 @@
     }
 
     const steps = 500;
-    const points = [];
+    const segments = [];
+    let previousPoint = null;
     for (let i = 0; i <= steps; i += 1) {
       const t = tMin + ((tMax - tMin) * i) / steps;
-      points.push({
+      const point = {
         x: finiteNumber(xExpr(t)),
         y: finiteNumber(yExpr(t)),
         z: finiteNumber(zExpr(t))
-      });
+      };
+      if (previousPoint) {
+        segments.push([previousPoint, point]);
+      }
+      previousPoint = point;
     }
 
-    const segments = [];
-    for (let i = 1; i < points.length; i += 1) {
-      segments.push([points[i - 1], points[i]]);
-    }
-
-    return { kind: 'segments', color: graph.color, lineWidth: 2, segments };
+    return { kind: 'segments', color: graph.color, lineColor: colorToRGBA(graph.color, 0.9), lineWidth: 2, segments };
   }
 
   function hexToRgb(hex) {
@@ -597,7 +612,7 @@
       graph.xExpr = tuple.xExpr;
       graph.yExpr = tuple.yExpr;
       graph.zExpr = tuple.zExpr;
-      return { kind: 'points', color: graph.color, radius: Math.max(1, 14 / resolution), points };
+      return { kind: 'points', color: graph.color, pointColor: colorToRGBA(graph.color, 0.75), radius: Math.max(1, 14 / resolution), points };
     }
 
     const expr = compileEvaluator(graph.solidExpr, ['x', 'y', 'z']);
@@ -638,7 +653,7 @@
       throw new Error('No solid points found in the current bounds.');
     }
 
-    return { kind: 'points', color: graph.color, radius: Math.max(1, 16 / resolution), points };
+    return { kind: 'points', color: graph.color, pointColor: colorToRGBA(graph.color, 0.75), radius: Math.max(1, 16 / resolution), points };
   }
 
   function rebuildGraph(graph) {
@@ -829,15 +844,17 @@
     const B = 5;
 
     // Floor grid (y = 0 plane)
-    for (let i = -B; i <= B; i += 1) {
-      const a = project({ x: i, y: 0, z: -B });
-      const b = project({ x: i, y: 0, z: B });
-      const c = project({ x: -B, y: 0, z: i });
-      const d = project({ x: B, y: 0, z: i });
-      ctx.strokeStyle = tc.grid;
-      ctx.lineWidth = 0.75;
-      if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
-      if (c && d) { ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke(); }
+    if (viewOptions.showGrid) {
+      for (let i = -B; i <= B; i += 1) {
+        const a = project({ x: i, y: 0, z: -B });
+        const b = project({ x: i, y: 0, z: B });
+        const c = project({ x: -B, y: 0, z: i });
+        const d = project({ x: B, y: 0, z: i });
+        ctx.strokeStyle = tc.grid;
+        ctx.lineWidth = 0.75;
+        if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+        if (c && d) { ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke(); }
+      }
     }
 
     // Bounding box
@@ -865,10 +882,11 @@
     });
 
     // Axes (drawn on top of grid)
+    const axisMin = viewOptions.showNegativeAxes ? -B : 0;
     const axisLines = [
-      [{ x: 0, y: 0, z: 0 }, { x: B, y: 0, z: 0 }, '#e05050'],
-      [{ x: 0, y: 0, z: 0 }, { x: 0, y: B, z: 0 }, '#50c060'],
-      [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: B }, '#5090e0']
+      [{ x: axisMin, y: 0, z: 0 }, { x: B, y: 0, z: 0 }, '#e05050'],
+      [{ x: 0, y: axisMin, z: 0 }, { x: 0, y: B, z: 0 }, '#50c060'],
+      [{ x: 0, y: 0, z: axisMin }, { x: 0, y: 0, z: B }, '#5090e0']
     ];
     axisLines.forEach(([from, to, color]) => {
       const pf = project(from);
@@ -957,7 +975,7 @@
             bx: pb.x,
             by: pb.y,
             depth: (pa.depth + pb.depth) * 0.5,
-            color: colorToRGBA(drawable.color, 0.9),
+            color: drawable.lineColor,
             lineWidth: drawable.lineWidth
           });
         });
@@ -973,7 +991,7 @@
             y: pp.y,
             depth: pp.depth,
             radius: drawable.radius,
-            color: colorToRGBA(drawable.color, 0.75)
+            color: drawable.pointColor
           });
         });
       }
@@ -1029,6 +1047,7 @@
   }
 
   function render() {
+    updateCameraBasis();
     ctx.fillStyle = THEME_COLORS[activeTheme].canvas;
     ctx.fillRect(0, 0, renderState.width, renderState.height);
     drawAxesAndGrid();
@@ -1049,8 +1068,8 @@
     const dx = event.clientX - dragStart.x;
     const dy = event.clientY - dragStart.y;
     dragStart = { x: event.clientX, y: event.clientY };
-    camera.yaw -= dx * 0.008;
-    camera.pitch = Math.max(-1.45, Math.min(1.45, camera.pitch - dy * 0.008));
+    camera.yaw += dx * 0.008;
+    camera.pitch = Math.max(-1.45, Math.min(1.45, camera.pitch + dy * 0.008));
   });
 
   canvas.addEventListener('pointerup', () => {
@@ -1082,6 +1101,18 @@
   if (toggleThemeButton) {
     toggleThemeButton.addEventListener('click', () => {
       setTheme(activeTheme === 'dark' ? 'light' : 'dark');
+    });
+  }
+  if (gridToggle) {
+    gridToggle.checked = viewOptions.showGrid;
+    gridToggle.addEventListener('change', () => {
+      viewOptions.showGrid = gridToggle.checked;
+    });
+  }
+  if (negativeAxesToggle) {
+    negativeAxesToggle.checked = viewOptions.showNegativeAxes;
+    negativeAxesToggle.addEventListener('change', () => {
+      viewOptions.showNegativeAxes = negativeAxesToggle.checked;
     });
   }
 
