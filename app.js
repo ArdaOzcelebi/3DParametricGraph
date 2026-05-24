@@ -68,10 +68,12 @@
     ceil: Math.ceil,
     round: Math.round,
     pi: Math.PI,
-    e: Math.E
+    e: Math.E,
+    infinity: Infinity
   };
   const SAFE_KEYS = Object.keys(SAFE_SCOPE);
   const SAFE_VALUES = SAFE_KEYS.map((k) => SAFE_SCOPE[k]);
+  const FUNCTION_NAMES = new Set(SAFE_KEYS.filter((k) => typeof SAFE_SCOPE[k] === 'function'));
   const IDENTIFIER_RE = /[A-Za-z_]\w*/g;
   const DISALLOWED_CHARS_RE = /[^0-9A-Za-z_+\-*/%^().,<>=!&| \t]/;
 
@@ -107,6 +109,113 @@
     return String(expression || '0').replace(/\^/g, '**');
   }
 
+  function tokenizeExpression(expression) {
+    const tokens = [];
+    const src = String(expression || '');
+    for (let i = 0; i < src.length; i += 1) {
+      const ch = src[i];
+      if (/\s/.test(ch)) {
+        continue;
+      }
+      const two = src.slice(i, i + 2);
+      if (['<=', '>=', '==', '!=', '&&', '||', '**'].includes(two)) {
+        tokens.push({ type: 'operator', value: two });
+        i += 1;
+        continue;
+      }
+      if (/[0-9.]/.test(ch)) {
+        let j = i + 1;
+        while (j < src.length && /[0-9.]/.test(src[j])) {
+          j += 1;
+        }
+        tokens.push({ type: 'number', value: src.slice(i, j) });
+        i = j - 1;
+        continue;
+      }
+      if (/[A-Za-z_]/.test(ch)) {
+        let j = i + 1;
+        while (j < src.length && /\w/.test(src[j])) {
+          j += 1;
+        }
+        tokens.push({ type: 'identifier', value: src.slice(i, j) });
+        i = j - 1;
+        continue;
+      }
+      if (ch === '(' || ch === ')') {
+        tokens.push({ type: 'paren', value: ch });
+        continue;
+      }
+      if (ch === ',') {
+        tokens.push({ type: 'comma', value: ch });
+        continue;
+      }
+      tokens.push({ type: 'operator', value: ch });
+    }
+    return tokens;
+  }
+
+  function splitImplicitIdentifierToken(token) {
+    if (!token || token.type !== 'identifier') {
+      return [token];
+    }
+    const value = token.value;
+    if (SAFE_KEYS.includes(value) || value === 'true' || value === 'false') {
+      return [token];
+    }
+    const lower = value.toLowerCase();
+    if (/^[tuvwxyz]{2,}$/.test(lower)) {
+      return lower.split('').map((part) => ({ type: 'identifier', value: part }));
+    }
+    return [token];
+  }
+
+  function canEndImplicit(token) {
+    return token && (token.type === 'number' || token.type === 'identifier' || (token.type === 'paren' && token.value === ')'));
+  }
+
+  function canStartImplicit(token) {
+    return token && (token.type === 'number' || token.type === 'identifier' || (token.type === 'paren' && token.value === '('));
+  }
+
+  function shouldInsertImplicitMultiplication(prev, next) {
+    if (!canEndImplicit(prev) || !canStartImplicit(next)) {
+      return false;
+    }
+    if (prev.type === 'identifier' && next.type === 'paren' && next.value === '(' && FUNCTION_NAMES.has(prev.value)) {
+      return false;
+    }
+    return true;
+  }
+
+  function insertImplicitMultiplication(expression) {
+    const tokens = tokenizeExpression(expression);
+    const expandedTokens = [];
+    tokens.forEach((token) => {
+      expandedTokens.push(...splitImplicitIdentifierToken(token));
+    });
+    const parts = [];
+    for (let i = 0; i < expandedTokens.length; i += 1) {
+      const token = expandedTokens[i];
+      const next = expandedTokens[i + 1];
+      parts.push(token.value);
+      if (shouldInsertImplicitMultiplication(token, next)) {
+        parts.push('*');
+      }
+    }
+    return parts.join('');
+  }
+
+  function normalizeExpressionInput(expression) {
+    let src = String(expression || '');
+    src = src.replace(/[×⋅·]/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi').replace(/∞/g, 'infinity');
+    src = src.replace(/\binfty\b/gi, 'infinity');
+    src = src.replace(/\bln\s*\(/gi, 'log(');
+    src = src.replace(/√\s*\(/g, 'sqrt(');
+    src = src.replace(/√\s*([+\-]?\s*(?:[A-Za-z_]\w*|\d+(?:\.\d+)?))/g, (_, arg) => `sqrt(${String(arg).replace(/\s+/g, '')})`);
+    src = src.replace(/\bsqrt\s+([+\-]?\s*(?:[A-Za-z_]\w*|\d+(?:\.\d+)?))/gi, (_, arg) => `sqrt(${String(arg).replace(/\s+/g, '')})`);
+    return insertImplicitMultiplication(src);
+  }
+
   function validateExpressionSource(src, variables) {
     if (DISALLOWED_CHARS_RE.test(src)) {
       throw new Error('Expression contains unsupported characters.');
@@ -122,19 +231,19 @@
   }
 
   function compile(expression, variables) {
-    const src = normalizeExponentSyntax(expression);
+    const src = normalizeExponentSyntax(normalizeExpressionInput(expression));
     validateExpressionSource(src, variables);
     return new Function(...SAFE_KEYS, ...variables, `'use strict'; return (${src});`);
   }
 
-  function evaluateCompiled(fn, scope) {
-    const values = Object.values(scope);
-    return fn(...SAFE_VALUES, ...values);
+  function compileEvaluator(expression, variables) {
+    const fn = compile(expression, variables);
+    return (...values) => fn(...SAFE_VALUES, ...values);
   }
 
   function parseNumber(raw) {
-    const fn = compile(String(raw || '0'), []);
-    const value = Number(evaluateCompiled(fn, {}));
+    const evaluate = compileEvaluator(String(raw || '0'), []);
+    const value = Number(evaluate());
     if (!Number.isFinite(value)) {
       throw new Error('Expected a finite number.');
     }
@@ -227,7 +336,7 @@
   }
 
   function parseParametricTuple(expression, strict = false) {
-    const expr = String(expression || '').trim();
+    const expr = normalizeExpressionInput(expression).trim();
     if (!expr) {
       return null;
     }
@@ -258,7 +367,10 @@
   }
 
   function applyMainExpression(graph) {
-    const expr = String(graph.mainExpr || '').trim();
+    const expr = normalizeExpressionInput(graph.mainExpr).trim();
+    if (expr) {
+      graph.mainExpr = expr;
+    }
     if (!expr) {
       if (graph.xExpr && graph.yExpr && graph.zExpr) {
         graph.mainExpr = `(${graph.xExpr}, ${graph.yExpr}, ${graph.zExpr})`;
@@ -352,9 +464,9 @@
   }
 
   function createCurveDrawable(graph) {
-    const xExpr = compile(graph.xExpr, ['t']);
-    const yExpr = compile(graph.yExpr, ['t']);
-    const zExpr = compile(graph.zExpr, ['t']);
+    const xExpr = compileEvaluator(graph.xExpr, ['t']);
+    const yExpr = compileEvaluator(graph.yExpr, ['t']);
+    const zExpr = compileEvaluator(graph.zExpr, ['t']);
     const tMin = parseNumber(graph.tMin);
     const tMax = parseNumber(graph.tMax);
     if (!(tMax > tMin)) {
@@ -366,9 +478,9 @@
     for (let i = 0; i <= steps; i += 1) {
       const t = tMin + ((tMax - tMin) * i) / steps;
       points.push({
-        x: finiteNumber(evaluateCompiled(xExpr, { t })),
-        y: finiteNumber(evaluateCompiled(yExpr, { t })),
-        z: finiteNumber(evaluateCompiled(zExpr, { t }))
+        x: finiteNumber(xExpr(t)),
+        y: finiteNumber(yExpr(t)),
+        z: finiteNumber(zExpr(t))
       });
     }
 
@@ -391,9 +503,9 @@
   }
 
   function createSurfaceDrawable(graph) {
-    const xExpr = compile(graph.xExpr, ['u', 'v']);
-    const yExpr = compile(graph.yExpr, ['u', 'v']);
-    const zExpr = compile(graph.zExpr, ['u', 'v']);
+    const xExpr = compileEvaluator(graph.xExpr, ['u', 'v']);
+    const yExpr = compileEvaluator(graph.yExpr, ['u', 'v']);
+    const zExpr = compileEvaluator(graph.zExpr, ['u', 'v']);
     const uMin = parseNumber(graph.uMin);
     const uMax = parseNumber(graph.uMax);
     const vMin = parseNumber(graph.vMin);
@@ -413,9 +525,9 @@
         const u = uMin + ((uMax - uMin) * i) / uSegments;
         const v = vMin + ((vMax - vMin) * j) / vSegments;
         row.push({
-          x: finiteNumber(evaluateCompiled(xExpr, { u, v })),
-          y: finiteNumber(evaluateCompiled(yExpr, { u, v })),
-          z: finiteNumber(evaluateCompiled(zExpr, { u, v }))
+          x: finiteNumber(xExpr(u, v)),
+          y: finiteNumber(yExpr(u, v)),
+          z: finiteNumber(zExpr(u, v))
         });
       }
       rows.push(row);
@@ -447,9 +559,9 @@
   function createSolidDrawable(graph) {
     const tuple = parseParametricTuple(graph.mainExpr);
     if (tuple && tuple.type === 'solid') {
-      const xExpr = compile(tuple.xExpr, ['u', 'v', 'w']);
-      const yExpr = compile(tuple.yExpr, ['u', 'v', 'w']);
-      const zExpr = compile(tuple.zExpr, ['u', 'v', 'w']);
+      const xExpr = compileEvaluator(tuple.xExpr, ['u', 'v', 'w']);
+      const yExpr = compileEvaluator(tuple.yExpr, ['u', 'v', 'w']);
+      const zExpr = compileEvaluator(tuple.zExpr, ['u', 'v', 'w']);
       const uMin = parseNumber(graph.uMin);
       const uMax = parseNumber(graph.uMax);
       const vMin = parseNumber(graph.vMin);
@@ -470,9 +582,9 @@
           for (let iw = 0; iw <= resolution; iw += 1) {
             const w = wMin + ((wMax - wMin) * iw) / resolution;
             points.push({
-              x: finiteNumber(evaluateCompiled(xExpr, { u, v, w })),
-              y: finiteNumber(evaluateCompiled(yExpr, { u, v, w })),
-              z: finiteNumber(evaluateCompiled(zExpr, { u, v, w }))
+              x: finiteNumber(xExpr(u, v, w)),
+              y: finiteNumber(yExpr(u, v, w)),
+              z: finiteNumber(zExpr(u, v, w))
             });
           }
         }
@@ -488,7 +600,7 @@
       return { kind: 'points', color: graph.color, radius: Math.max(1, 14 / resolution), points };
     }
 
-    const expr = compile(graph.solidExpr, ['x', 'y', 'z']);
+    const expr = compileEvaluator(graph.solidExpr, ['x', 'y', 'z']);
     const min = parseNumber(graph.boundsMin);
     const max = parseNumber(graph.boundsMax);
     const resolution = Math.max(MIN_SOLID_RESOLUTION, Math.min(MAX_SOLID_RESOLUTION, Math.round(parseNumber(graph.resolution))));
@@ -506,7 +618,7 @@
           const x = min + (span * ix) / resolution;
           const y = min + (span * iy) / resolution;
           const z = min + (span * iz) / resolution;
-          const value = evaluateCompiled(expr, { x, y, z });
+          const value = expr(x, y, z);
           let inside;
           if (typeof value === 'boolean') {
             inside = value;
@@ -568,7 +680,7 @@
         <button type="button" class="color-dot" data-action="pick-color" aria-label="Graph color" style="background:${graph.color}"></button>
         <div class="card-body">
           <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" aria-label="Expression" />
-          <div class="hint">Curve <code>(t)</code>, surface <code>(u,v)</code>, solid <code>(u,v,w)</code>, or <code>z=f(x,y)</code>.</div>
+          <div class="hint">Curve <code>(t)</code>, surface <code>(u,v)</code>, solid <code>(u,v,w)</code>, or <code>z=f(x,y)</code>. Implicit multiplication and aliases like <code>√</code>/<code>sqrt</code>, <code>π</code>, and <code>infty</code> are supported.</div>
           <div class="card-actions">
             <button type="button" data-action="plot">Plot</button>
             <details class="advanced-options">
@@ -650,6 +762,7 @@
       try {
         rebuildGraph(graph);
         typeSelect.value = graph.type;
+        card.querySelector('[data-field="mainExpr"]').value = graph.mainExpr;
         card.querySelector('[data-field="xExpr"]').value = graph.xExpr;
         card.querySelector('[data-field="yExpr"]').value = graph.yExpr;
         card.querySelector('[data-field="zExpr"]').value = graph.zExpr;
