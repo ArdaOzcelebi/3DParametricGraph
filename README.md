@@ -27,4 +27,5 @@ Then open `http://localhost:8000`.
 - Light/dark mode toggle
 - Mobile-friendly responsive control panel + viewport
 - Orbit/zoom/pan controls for easy 3D navigation
+- Toolbar toggles for grid visibility and negative-axis extension
 - Improved expression evaluation performance (reduced per-point overhead in curve/surface/solid sampling)
