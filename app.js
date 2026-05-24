@@ -26,17 +26,28 @@
   const MIN_SOLID_RESOLUTION = 8;
   const MAX_SOLID_RESOLUTION = 42;
   const MAX_DEVICE_PIXEL_RATIO = 2;
+  const MESH_OPACITY = 0.92;
   const DEFAULT_MAIN_EXAMPLE = '(cos(t), sin(t), t/6)';
+  const GRAPH_COLORS = ['#c74440', '#2d70b3', '#388c46', '#fa7e19', '#6042a6', '#000000'];
   const THEME_COLORS = {
     dark: {
-      canvas: '#060913',
-      grid: 'rgba(60, 72, 110, 0.55)'
+      canvas: '#1a1b26',
+      grid: 'rgba(60, 72, 110, 0.45)',
+      box: 'rgba(80, 100, 150, 0.45)',
+      axisLabel: 'rgba(160, 180, 230, 0.92)'
     },
     light: {
-      canvas: '#f5f7fe',
-      grid: 'rgba(146, 159, 199, 0.65)'
+      canvas: '#f9f9f9',
+      grid: 'rgba(170, 185, 210, 0.6)',
+      box: 'rgba(155, 170, 195, 0.65)',
+      axisLabel: 'rgba(90, 105, 130, 0.95)'
     }
   };
+  const LIGHT_DIR = (() => {
+    const lx = 1, ly = 2, lz = 1;
+    const len = Math.sqrt(lx * lx + ly * ly + lz * lz);
+    return { x: lx / len, y: ly / len, z: lz / len };
+  })();
   let activeTheme = 'dark';
 
   const SAFE_SCOPE = {
@@ -66,10 +77,11 @@
 
   function createDefaultGraph() {
     graphIdCounter += 1;
+    const color = GRAPH_COLORS[(graphIdCounter - 1) % GRAPH_COLORS.length];
     return {
       id: `graph-${graphIdCounter}`,
       type: 'curve',
-      color: '#37b3ff',
+      color,
       mainExpr: DEFAULT_MAIN_EXAMPLE,
       xExpr: 'cos(t)',
       yExpr: 'sin(t)',
@@ -80,6 +92,8 @@
       uMax: '3',
       vMin: '0',
       vMax: '2*pi',
+      wMin: '0',
+      wMax: '1',
       solidExpr: 'x^2 + y^2 + z^2 - 4 <= 0',
       boundsMin: '-2.5',
       boundsMax: '2.5',
@@ -212,6 +226,37 @@
     return /[<>]=?|==|!=/.test(String(expression || ''));
   }
 
+  function parseParametricTuple(expression, strict = false) {
+    const expr = String(expression || '').trim();
+    if (!expr) {
+      return null;
+    }
+    const base = stripOuterParens(expr);
+    let parts;
+    try {
+      parts = splitTopLevel(base);
+    } catch (err) {
+      if (strict) {
+        throw err;
+      }
+      return null;
+    }
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const [rawX, rawY, rawZ] = parts;
+    const xExpr = removeAxisPrefix(rawX, 'x');
+    const yExpr = removeAxisPrefix(rawY, 'y');
+    const zExpr = removeAxisPrefix(rawZ, 'z');
+    const combined = `${xExpr} ${yExpr} ${zExpr}`;
+    const hasW = expressionHasIdentifier(combined, 'w');
+    const hasUOrV = expressionHasIdentifier(combined, 'u') || expressionHasIdentifier(combined, 'v');
+    const type = hasW ? 'solid' : (hasUOrV ? 'surface' : 'curve');
+
+    return { xExpr, yExpr, zExpr, type };
+  }
+
   function applyMainExpression(graph) {
     const expr = String(graph.mainExpr || '').trim();
     if (!expr) {
@@ -221,19 +266,12 @@
       return;
     }
 
-    const base = stripOuterParens(expr);
-    const parts = splitTopLevel(base);
-
-    if (parts.length === 3) {
-      const [rawX, rawY, rawZ] = parts;
-      const xExpr = removeAxisPrefix(rawX, 'x');
-      const yExpr = removeAxisPrefix(rawY, 'y');
-      const zExpr = removeAxisPrefix(rawZ, 'z');
-      const combined = `${xExpr} ${yExpr} ${zExpr}`;
-      graph.type = expressionHasIdentifier(combined, 'u') || expressionHasIdentifier(combined, 'v') ? 'surface' : 'curve';
-      graph.xExpr = xExpr;
-      graph.yExpr = yExpr;
-      graph.zExpr = zExpr;
+    const tuple = parseParametricTuple(expr, true);
+    if (tuple) {
+      graph.type = tuple.type;
+      graph.xExpr = tuple.xExpr;
+      graph.yExpr = tuple.yExpr;
+      graph.zExpr = tuple.zExpr;
       return;
     }
 
@@ -248,14 +286,18 @@
       return;
     }
 
-    throwMainExpressionError('Invalid expression. For curves/surfaces use parametric component form like (cos(t), sin(t), t/6) or explicit form z=f(x, y).');
+    throwMainExpressionError('Invalid expression. Try (cos(t), sin(t), t/6), (u*v, sin(u*v), cos(u)), (u, v, w), or z=sin(x)*cos(y).');
   }
 
   function setTheme(theme) {
     activeTheme = theme === 'light' ? 'light' : 'dark';
     document.documentElement.dataset.theme = activeTheme;
     if (toggleThemeButton) {
-      toggleThemeButton.textContent = activeTheme === 'light' ? 'Dark Mode' : 'Light Mode';
+      if (toggleThemeButton.dataset.themeToggle === 'icon') {
+        toggleThemeButton.textContent = activeTheme === 'light' ? '◐' : '☀';
+      } else {
+        toggleThemeButton.textContent = activeTheme === 'light' ? 'Dark Mode' : 'Light Mode';
+      }
     }
     try {
       localStorage.setItem('graph-theme', activeTheme);
@@ -338,6 +380,16 @@
     return { kind: 'segments', color: graph.color, lineWidth: 2, segments };
   }
 
+  function hexToRgb(hex) {
+    const value = String(hex || '#ffffff').replace('#', '');
+    const expanded = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
+    if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
+      return { r: 255, g: 255, b: 255 };
+    }
+    const n = parseInt(expanded, 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
   function createSurfaceDrawable(graph) {
     const xExpr = compile(graph.xExpr, ['u', 'v']);
     const yExpr = compile(graph.yExpr, ['u', 'v']);
@@ -351,8 +403,8 @@
       throw new Error('u/v max must be greater than min.');
     }
 
-    const uSegments = 40;
-    const vSegments = 40;
+    const uSegments = 36;
+    const vSegments = 36;
     const rows = [];
 
     for (let i = 0; i <= uSegments; i += 1) {
@@ -369,22 +421,73 @@
       rows.push(row);
     }
 
-    const segments = [];
-    for (let i = 0; i <= uSegments; i += 1) {
-      for (let j = 1; j <= vSegments; j += 1) {
-        segments.push([rows[i][j - 1], rows[i][j]]);
-      }
-    }
-    for (let i = 1; i <= uSegments; i += 1) {
-      for (let j = 0; j <= vSegments; j += 1) {
-        segments.push([rows[i - 1][j], rows[i][j]]);
+    const rgb = hexToRgb(graph.color);
+    const quads = [];
+    for (let i = 0; i < uSegments; i += 1) {
+      for (let j = 0; j < vSegments; j += 1) {
+        const a = rows[i][j];
+        const b = rows[i + 1][j];
+        const c = rows[i + 1][j + 1];
+        const d = rows[i][j + 1];
+
+        const e1x = b.x - a.x, e1y = b.y - a.y, e1z = b.z - a.z;
+        const e2x = d.x - a.x, e2y = d.y - a.y, e2z = d.z - a.z;
+        const nx = e1y * e2z - e1z * e2y;
+        const ny = e1z * e2x - e1x * e2z;
+        const nz = e1x * e2y - e1y * e2x;
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+
+        quads.push({ verts: [a, b, c, d], nx: nx / len, ny: ny / len, nz: nz / len });
       }
     }
 
-    return { kind: 'segments', color: graph.color, lineWidth: 1, segments };
+    return { kind: 'mesh', rgb, quads };
   }
 
   function createSolidDrawable(graph) {
+    const tuple = parseParametricTuple(graph.mainExpr);
+    if (tuple && tuple.type === 'solid') {
+      const xExpr = compile(tuple.xExpr, ['u', 'v', 'w']);
+      const yExpr = compile(tuple.yExpr, ['u', 'v', 'w']);
+      const zExpr = compile(tuple.zExpr, ['u', 'v', 'w']);
+      const uMin = parseNumber(graph.uMin);
+      const uMax = parseNumber(graph.uMax);
+      const vMin = parseNumber(graph.vMin);
+      const vMax = parseNumber(graph.vMax);
+      const wMin = parseNumber(graph.wMin);
+      const wMax = parseNumber(graph.wMax);
+      const resolution = Math.max(MIN_SOLID_RESOLUTION, Math.min(MAX_SOLID_RESOLUTION, Math.round(parseNumber(graph.resolution))));
+
+      if (!(uMax > uMin && vMax > vMin && wMax > wMin)) {
+        throw new Error('u/v/w max must be greater than min.');
+      }
+
+      const points = [];
+      for (let iu = 0; iu <= resolution; iu += 1) {
+        const u = uMin + ((uMax - uMin) * iu) / resolution;
+        for (let iv = 0; iv <= resolution; iv += 1) {
+          const v = vMin + ((vMax - vMin) * iv) / resolution;
+          for (let iw = 0; iw <= resolution; iw += 1) {
+            const w = wMin + ((wMax - wMin) * iw) / resolution;
+            points.push({
+              x: finiteNumber(evaluateCompiled(xExpr, { u, v, w })),
+              y: finiteNumber(evaluateCompiled(yExpr, { u, v, w })),
+              z: finiteNumber(evaluateCompiled(zExpr, { u, v, w }))
+            });
+          }
+        }
+      }
+
+      if (points.length === 0) {
+        throw new Error('No solid points found in the current u/v/w ranges.');
+      }
+
+      graph.xExpr = tuple.xExpr;
+      graph.yExpr = tuple.yExpr;
+      graph.zExpr = tuple.zExpr;
+      return { kind: 'points', color: graph.color, radius: Math.max(1, 14 / resolution), points };
+    }
+
     const expr = compile(graph.solidExpr, ['x', 'y', 'z']);
     const min = parseNumber(graph.boundsMin);
     const max = parseNumber(graph.boundsMax);
@@ -427,7 +530,9 @@
   }
 
   function rebuildGraph(graph) {
-    if (graph.type !== 'solid') {
+    // Always re-parse if mainExpr is a parametric tuple (handles type changes on re-plot)
+    const tuple = parseParametricTuple(graph.mainExpr);
+    if (graph.type !== 'solid' || tuple) {
       applyMainExpression(graph);
     }
     if (graph.type === 'curve') {
@@ -458,82 +563,68 @@
   function renderGraphCard(graph) {
     const card = document.createElement('article');
     card.className = 'graph-card';
-    const foundIndex = runtimeGraphs.findIndex((item) => item.id === graph.id);
-    const graphNumber = Math.max(1, foundIndex >= 0 ? foundIndex + 1 : runtimeGraphs.length);
     card.innerHTML = `
-      <div class="card-top">
-        <span class="entry-index">${graphNumber}</span>
+      <div class="card-row">
+        <button type="button" class="color-dot" data-action="pick-color" aria-label="Graph color" style="background:${graph.color}"></button>
+        <div class="card-body">
+          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" aria-label="Expression" />
+          <div class="hint">Curve <code>(t)</code>, surface <code>(u,v)</code>, solid <code>(u,v,w)</code>, or <code>z=f(x,y)</code>.</div>
+          <div class="card-actions">
+            <button type="button" data-action="plot">Plot</button>
+            <details class="advanced-options">
+              <summary>Advanced</summary>
+              <div class="row">
+                <div class="field">
+                  <label>Type</label>
+                  <select data-field="type">
+                    <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
+                    <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
+                    <option value="solid" ${graph.type === 'solid' ? 'selected' : ''}>Solid</option>
+                  </select>
+                </div>
+              </div>
+
+              <div data-type-group="curve-surface" class="row">
+                ${field('xExpr', 'x expression', graph.xExpr)}
+                ${field('yExpr', 'y expression', graph.yExpr)}
+                ${field('zExpr', 'z expression', graph.zExpr)}
+              </div>
+
+              <div data-type-group="curve" class="row split">
+                ${field('tMin', 't min', graph.tMin)}
+                ${field('tMax', 't max', graph.tMax)}
+              </div>
+
+              <div data-type-group="surface" class="row split">
+                ${field('uMin', 'u min', graph.uMin)}
+                ${field('uMax', 'u max', graph.uMax)}
+                ${field('vMin', 'v min', graph.vMin)}
+                ${field('vMax', 'v max', graph.vMax)}
+                ${field('wMin', 'w min', graph.wMin)}
+                ${field('wMax', 'w max', graph.wMax)}
+              </div>
+
+              <div data-type-group="solid" class="row">
+                <div class="field full">
+                  <label>Solid expression (boolean, or &lt;= 0 form)</label>
+                  <input data-field="solidExpr" value="${graph.solidExpr}" />
+                </div>
+                ${field('boundsMin', 'Bounds min', graph.boundsMin)}
+                ${field('boundsMax', 'Bounds max', graph.boundsMax)}
+                ${field('resolution', 'Resolution (8-42)', graph.resolution)}
+              </div>
+            </details>
+          </div>
+          <div class="status"></div>
+        </div>
         <button type="button" data-action="remove" class="icon-button" aria-label="Remove expression">×</button>
       </div>
-
-      <div class="row">
-        <div class="field full">
-          <label>Expression</label>
-          <input data-field="mainExpr" value="${graph.mainExpr || ''}" placeholder="${DEFAULT_MAIN_EXAMPLE} or z=sin(x)*cos(y)" />
-          <div class="hint">Use <code>(x, y, z)</code> for parametric (with <code>t</code> for curves, <code>u, v</code> for surfaces) or <code>z=f(x, y)</code> for explicit surfaces.</div>
-        </div>
-      </div>
-
-      <div class="card-actions">
-        <button type="button" data-action="plot">Plot</button>
-        <details class="advanced-options">
-          <summary>Advanced</summary>
-          <div class="row">
-            <div class="field">
-              <label>Type</label>
-              <select data-field="type">
-                <option value="curve" ${graph.type === 'curve' ? 'selected' : ''}>Curve</option>
-                <option value="surface" ${graph.type === 'surface' ? 'selected' : ''}>Surface</option>
-                <option value="solid" ${graph.type === 'solid' ? 'selected' : ''}>Solid</option>
-              </select>
-            </div>
-            ${field('color', 'Color', graph.color, 'color')}
-          </div>
-
-          <div data-type-group="curve-surface" class="row">
-            ${field('xExpr', 'x expression', graph.xExpr)}
-            ${field('yExpr', 'y expression', graph.yExpr)}
-            ${field('zExpr', 'z expression', graph.zExpr)}
-          </div>
-
-          <div data-type-group="curve" class="row split">
-            ${field('tMin', 't min', graph.tMin)}
-            ${field('tMax', 't max', graph.tMax)}
-          </div>
-
-          <div data-type-group="surface" class="row split">
-            ${field('uMin', 'u min', graph.uMin)}
-            ${field('uMax', 'u max', graph.uMax)}
-            ${field('vMin', 'v min', graph.vMin)}
-            ${field('vMax', 'v max', graph.vMax)}
-          </div>
-
-          <div data-type-group="solid" class="row">
-            <div class="field full">
-              <label>Solid expression (boolean, or <= 0 form)</label>
-              <input data-field="solidExpr" value="${graph.solidExpr}" />
-            </div>
-            ${field('boundsMin', 'Bounds min', graph.boundsMin)}
-            ${field('boundsMax', 'Bounds max', graph.boundsMax)}
-            ${field('resolution', 'Resolution (8-42)', graph.resolution)}
-          </div>
-        </details>
-      </div>
-
-      <div class="row compact-fields">
-        <div class="field">
-          <label>Type</label>
-          <input data-readonly="type" value="${graph.type}" readonly />
-        </div>
-        <div class="field">
-          <label>Color</label>
-          <input data-readonly="color" value="${graph.color}" readonly />
-        </div>
-      </div>
-      <div class="status"></div>
+      <input type="color" data-field="color" value="${graph.color}" style="display:none" tabindex="-1" aria-hidden="true" />
     `;
 
     const typeSelect = card.querySelector('[data-field="type"]');
+    const colorDot = card.querySelector('.color-dot');
+    const colorInput = card.querySelector('[data-field="color"]');
     const statusEl = card.querySelector('.status');
 
     function setStatus(text, isError) {
@@ -541,16 +632,15 @@
       statusEl.classList.toggle('error', Boolean(isError));
     }
 
-    function updateReadOnlySummary() {
-      card.querySelector('[data-readonly="type"]').value = graph.type;
-      card.querySelector('[data-readonly="color"]').value = graph.color;
-    }
-
     function refreshVisibility() {
       const type = typeSelect.value;
+      const tuple = parseParametricTuple(card.querySelector('[data-field="mainExpr"]').value);
+      const showParametricRanges = type === 'surface' || (type === 'solid' && tuple && tuple.type === 'solid');
       card.querySelectorAll('[data-type-group]').forEach((el) => {
         const group = el.dataset.typeGroup;
-        const visible = group === type || (group === 'curve-surface' && (type === 'curve' || type === 'surface'));
+        const isCurveSurfaceGroup = group === 'curve-surface' && (type === 'curve' || type === 'surface');
+        const isSurfaceGroup = group === 'surface' && showParametricRanges;
+        const visible = group === type || isCurveSurfaceGroup || isSurfaceGroup;
         el.style.display = visible ? 'grid' : 'none';
       });
     }
@@ -563,7 +653,8 @@
         card.querySelector('[data-field="xExpr"]').value = graph.xExpr;
         card.querySelector('[data-field="yExpr"]').value = graph.yExpr;
         card.querySelector('[data-field="zExpr"]').value = graph.zExpr;
-        updateReadOnlySummary();
+        colorDot.style.background = graph.color;
+        colorInput.value = graph.color;
         refreshVisibility();
         setStatus(graph.status, false);
       } catch (err) {
@@ -572,14 +663,26 @@
       }
     }
 
+    colorDot.addEventListener('click', () => colorInput.click());
+
+    colorInput.addEventListener('input', () => {
+      colorDot.style.background = colorInput.value;
+    });
+
     typeSelect.addEventListener('change', () => {
       refreshVisibility();
       updateGraphFromForm(graph, card);
-      updateReadOnlySummary();
       setStatus('Type changed. Press Plot to render.', false);
     });
 
     card.querySelector('[data-action="plot"]').addEventListener('click', replot);
+    card.querySelector('[data-field="mainExpr"]').addEventListener('input', refreshVisibility);
+    card.querySelector('[data-field="mainExpr"]').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        replot();
+      }
+    });
 
     card.querySelector('[data-action="remove"]').addEventListener('click', () => {
       const index = runtimeGraphs.findIndex((g) => g.id === graph.id);
@@ -587,9 +690,6 @@
         runtimeGraphs.splice(index, 1);
       }
       card.remove();
-      graphList.querySelectorAll('.entry-index').forEach((el, idx) => {
-        el.textContent = String(idx + 1);
-      });
     });
 
     refreshVisibility();
@@ -612,28 +712,93 @@
   }
 
   function drawAxesAndGrid() {
-    const lines = [];
-    for (let i = -10; i <= 10; i += 1) {
-      lines.push([{ x: i, y: 0, z: -10 }, { x: i, y: 0, z: 10 }, THEME_COLORS[activeTheme].grid]);
-      lines.push([{ x: -10, y: 0, z: i }, { x: 10, y: 0, z: i }, THEME_COLORS[activeTheme].grid]);
+    const tc = THEME_COLORS[activeTheme];
+    const B = 5;
+
+    // Floor grid (y = 0 plane)
+    for (let i = -B; i <= B; i += 1) {
+      const a = project({ x: i, y: 0, z: -B });
+      const b = project({ x: i, y: 0, z: B });
+      const c = project({ x: -B, y: 0, z: i });
+      const d = project({ x: B, y: 0, z: i });
+      ctx.strokeStyle = tc.grid;
+      ctx.lineWidth = 0.75;
+      if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      if (c && d) { ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke(); }
     }
 
-    lines.push([{ x: -6, y: 0, z: 0 }, { x: 6, y: 0, z: 0 }, '#ff6f6f']);
-    lines.push([{ x: 0, y: -6, z: 0 }, { x: 0, y: 6, z: 0 }, '#6fff88']);
-    lines.push([{ x: 0, y: 0, z: -6 }, { x: 0, y: 0, z: 6 }, '#6fa7ff']);
-
-    lines.forEach(([a, b, color]) => {
-      const pa = project(a);
-      const pb = project(b);
-      if (!pa || !pb) {
-        return;
-      }
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
+    // Bounding box
+    const corners = [
+      { x: -B, y: -B, z: -B }, { x: B, y: -B, z: -B },
+      { x: B, y: B, z: -B }, { x: -B, y: B, z: -B },
+      { x: -B, y: -B, z: B }, { x: B, y: -B, z: B },
+      { x: B, y: B, z: B }, { x: -B, y: B, z: B }
+    ];
+    const boxEdges = [
+      [0, 1], [1, 2], [2, 3], [3, 0],
+      [4, 5], [5, 6], [6, 7], [7, 4],
+      [0, 4], [1, 5], [2, 6], [3, 7]
+    ];
+    ctx.strokeStyle = tc.box;
+    ctx.lineWidth = 0.8;
+    boxEdges.forEach(([ai, bi]) => {
+      const pa = project(corners[ai]);
+      const pb = project(corners[bi]);
+      if (!pa || !pb) { return; }
       ctx.beginPath();
       ctx.moveTo(pa.x, pa.y);
       ctx.lineTo(pb.x, pb.y);
       ctx.stroke();
+    });
+
+    // Axes (drawn on top of grid)
+    const axisLines = [
+      [{ x: 0, y: 0, z: 0 }, { x: B, y: 0, z: 0 }, '#e05050'],
+      [{ x: 0, y: 0, z: 0 }, { x: 0, y: B, z: 0 }, '#50c060'],
+      [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: B }, '#5090e0']
+    ];
+    axisLines.forEach(([from, to, color]) => {
+      const pf = project(from);
+      const pt = project(to);
+      if (!pf || !pt) { return; }
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pf.x, pf.y);
+      ctx.lineTo(pt.x, pt.y);
+      ctx.stroke();
+
+      // Arrowhead
+      const dx = pt.x - pf.x;
+      const dy = pt.y - pf.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const arrowLen = 7;
+      const arrowWid = 3;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+      ctx.lineTo(pt.x - ux * arrowLen - uy * arrowWid, pt.y - uy * arrowLen + ux * arrowWid);
+      ctx.lineTo(pt.x - ux * arrowLen + uy * arrowWid, pt.y - uy * arrowLen - ux * arrowWid);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Axis labels
+    const labels = [
+      { pos: { x: B + 0.5, y: 0, z: 0 }, text: 'x' },
+      { pos: { x: 0, y: B + 0.5, z: 0 }, text: 'y' },
+      { pos: { x: 0, y: 0, z: B + 0.5 }, text: 'z' }
+    ];
+    ctx.font = 'bold 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    labels.forEach(({ pos, text }) => {
+      const pp = project(pos);
+      if (!pp) { return; }
+      ctx.fillStyle = tc.axisLabel;
+      ctx.fillText(text, pp.x, pp.y);
     });
   }
 
@@ -646,7 +811,26 @@
         return;
       }
 
-      if (drawable.kind === 'segments') {
+      if (drawable.kind === 'mesh') {
+        drawable.quads.forEach((q) => {
+          const projected = q.verts.map((v) => project(v));
+          if (projected.some((p) => !p)) {
+            return;
+          }
+          const depth = projected.reduce((s, p) => s + p.depth, 0) * 0.25;
+          const dot = Math.abs(q.nx * LIGHT_DIR.x + q.ny * LIGHT_DIR.y + q.nz * LIGHT_DIR.z);
+          const brightness = 0.35 + 0.65 * dot;
+          drawCommands.push({
+            kind: 'quad',
+            pts: projected,
+            depth,
+            r: drawable.rgb.r,
+            g: drawable.rgb.g,
+            b: drawable.rgb.b,
+            brightness
+          });
+        });
+      } else if (drawable.kind === 'segments') {
         drawable.segments.forEach(([a, b]) => {
           const pa = project(a);
           const pb = project(b);
@@ -685,7 +869,24 @@
     drawCommands.sort((a, b) => b.depth - a.depth);
 
     drawCommands.forEach((cmd) => {
-      if (cmd.kind === 'line') {
+      if (cmd.kind === 'quad') {
+        const br = cmd.brightness;
+        const r = Math.round(cmd.r * br);
+        const g = Math.round(cmd.g * br);
+        const b = Math.round(cmd.b * br);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${MESH_OPACITY})`;
+        ctx.beginPath();
+        ctx.moveTo(cmd.pts[0].x, cmd.pts[0].y);
+        ctx.lineTo(cmd.pts[1].x, cmd.pts[1].y);
+        ctx.lineTo(cmd.pts[2].x, cmd.pts[2].y);
+        ctx.lineTo(cmd.pts[3].x, cmd.pts[3].y);
+        ctx.closePath();
+        ctx.fill();
+        // Thin edge to remove seams between quads
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.4)`;
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+      } else if (cmd.kind === 'line') {
         ctx.strokeStyle = cmd.color;
         ctx.lineWidth = cmd.lineWidth;
         ctx.beginPath();
