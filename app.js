@@ -211,8 +211,8 @@
     src = src.replace(/\binfty\b/gi, 'infinity');
     src = src.replace(/\bln\s*\(/gi, 'log(');
     src = src.replace(/√\s*\(/g, 'sqrt(');
-    src = src.replace(/√\s*([A-Za-z_]\w*|\d+(?:\.\d+)?)/g, 'sqrt($1)');
-    src = src.replace(/\bsqrt\s+([A-Za-z_]\w*|\d+(?:\.\d+)?)/gi, 'sqrt($1)');
+    src = src.replace(/√\s*([+\-]?\s*(?:[A-Za-z_]\w*|\d+(?:\.\d+)?))/g, (_, arg) => `sqrt(${String(arg).replace(/\s+/g, '')})`);
+    src = src.replace(/\bsqrt\s+([+\-]?\s*(?:[A-Za-z_]\w*|\d+(?:\.\d+)?))/gi, (_, arg) => `sqrt(${String(arg).replace(/\s+/g, '')})`);
     return insertImplicitMultiplication(src);
   }
 
